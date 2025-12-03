@@ -1,0 +1,17 @@
+# config.py
+# API endpoints and dataset identifiers for SB-79 mapping
+
+# California State Geoportal endpoints
+CITY_BOUNDARIES_URL = "https://services3.arcgis.com/uknczv4rpevve42E/arcgis/rest/services/California_Cities_and_Identifiers_Blue_Version_view/FeatureServer/2/query"
+
+HIGH_QUALITY_TRANSIT_STOPS_URL = "https://caltrans-gis.dot.ca.gov/arcgis/rest/services/CHrailroad/CA_HQ_Transit_Stops/FeatureServer/0/query"
+
+ALAMEDA_PARCEL_API = "https://services5.arcgis.com/ROBnTHSNjoZ2Wm1P/arcgis/rest/services/Parcels/FeatureServer/0/query"
+
+# SB-79 parameters
+TIER1_BUFFER_MILES = 0.5
+TIER2_BUFFER_MILES = 0.25
+
+# Map display settings
+DEFAULT_ZOOM = 13
+MAP_CENTER = [37.8715, -122.2730]  # Berkeley coords
