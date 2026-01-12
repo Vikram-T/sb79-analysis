@@ -125,6 +125,7 @@ def get_parcels_near_transit_stops(parcel_api, transit_stops, distance_miles, ci
     remaining_records = True
 
     try:
+        # API Only returns results in batches so we need to loop until we get all items
         while remaining_records:
             parcel_params["resultOffset"] = offset
             parcel_params["resultRecordCount"] = batch_size
@@ -148,7 +149,7 @@ def get_parcels_near_transit_stops(parcel_api, transit_stops, distance_miles, ci
             parcel_json = response_json['features']
             parcels_list.extend(parcel_json)
             
-            # determine next loop
+            # determine next batch
             remaining_records = response_json.get("properties", {}).get("exceededTransferLimit", False)
             print(f"   Fetched batch at offset {offset}: {len(parcel_json)} parcels (total: {len(parcels_list)})")
             offset += batch_size
@@ -220,6 +221,7 @@ def get_tier1_parcels(parcel_api, transit_stops, city_name):
     # Combine all zones
     all_parcels = gpd.GeoDataFrame(pd.concat([two_hundred_ft_parcels, quarter_mile_only, half_mile_only], ignore_index=True))
 
+    # Print Results
     two_hundred_ft_count = len(all_parcels[all_parcels['tier1_zone'] == '200ft'])
     quarter_count = len(all_parcels[all_parcels['tier1_zone'] == 'quarter_mile'])
     half_count = len(all_parcels[all_parcels['tier1_zone'] == 'half_mile'])
@@ -367,9 +369,11 @@ def add_zoning_to_parcels(parcels, zoning_districts):
 
     return joined
 
-def add_potential_capacity(parcels):
+def add_potential_and_net_capacity(parcels):
     """
     Calculate potential unit capacity for each parcel based on tier zone and lot size.
+    Use this to then calculate the net capacity which is Potential - Existing.
+    This number cannot be negative though and will rather be 0
 
     Args:
         parcels: GeoDataFrame containing parcel data with 'tier1_zone' and 'LotSize' columns
@@ -401,14 +405,24 @@ def add_potential_capacity(parcels):
 
     parcels['PotentialCapacity'] = parcels.apply(calc_capacity, axis=1)
 
+    # Calculating net capacity based on SB-79 65912.161. (a) (1)
+    # Essentially we take (potential capacity based on distance from transit) - (existing capacity) = net_capacity
+    # This incentivizes development on parking lots over places that already have housing
+    def net_capacity(row):
+        potential = row.get('PotentialCapacity', 0)
+        existing = row.get('Units', 0)
+
+        return max(potential - existing, 0)
+
+    parcels["NetIncreaseCapacity"] = parcels.apply(net_capacity,axis=1)
+
     # Print summary
-    total_capacity = parcels['PotentialCapacity'].sum()
     print(f"\n✓ Calculated potential capacity for {len(parcels)} parcels")
     print(f"  Using densities: 200ft={DENSITY_200FT}, quarter_mile={DENSITY_QUARTER_MILE}, half_mile={DENSITY_HALF_MILE} units/acre")
 
     return parcels
 
-def add_parcels(map_obj, parcels, color='orange', name='Parcels'):
+def add_parcels_to_folium(map_obj, parcels, color='orange', name='Parcels'):
     """
     Add parcel polygons to a folium map.
 
@@ -471,7 +485,7 @@ def add_parcels(map_obj, parcels, color='orange', name='Parcels'):
         )
     ).add_to(map_obj)
 
-def add_city_boundary(map_obj, city_geojson):
+def add_city_boundary_to_folium(map_obj, city_geojson):
     """
     Add city boundary layer to a folium map.
 
@@ -492,7 +506,7 @@ def add_city_boundary(map_obj, city_geojson):
         popup=folium.Popup(f"{city_name} boundary", max_width=300)
     ).add_to(map_obj)
 
-def add_transit_stops(map_obj, transit_stops):
+def add_transit_stops_to_folium(map_obj, transit_stops):
     """
     Add transit stop markers to a folium map.
 
@@ -566,8 +580,10 @@ def main():
         if zoning_districts is not None:
             save_layer(zoning_districts, city_name, LAYER_ZONING, BERKELEY_ZONING_API)
 
-        # Get parcels (will be saved after processing)
+        # Get parcels 
         tier1_parcels = get_tier1_parcels(BERKELEY_PARCEL_API, transit_stops, city_name)
+        if tier1_parcels is not None:
+            save_layer(tier1_parcels, city_name, LAYER_PARCELS, BERKELEY_PARCEL_API)
 
     print(f"\n✓ Found {len(transit_stops)} transit stops in {city_name}")
 
@@ -583,51 +599,64 @@ def main():
     )
 
     # Add map layers
-    add_city_boundary(m, city_geojson)
-    add_transit_stops(m, transit_stops)
+    add_city_boundary_to_folium(m, city_geojson)
+    add_transit_stops_to_folium(m, transit_stops)
 
-    # Process parcels (add zoning and capacity) if not loading pre-processed data
-    if not USE_LOCAL_DATA:
-        # Add zoning info to parcels
-        if tier1_parcels is not None and zoning_districts is not None:
-            tier1_parcels = add_zoning_to_parcels(tier1_parcels, zoning_districts)
+    # Add zoning to parcels
+    tier1_parcels = add_zoning_to_parcels(tier1_parcels, zoning_districts)
+        
+    # Filter for residential, commercial, and mixed use parcels
+    tier1_parcels = tier1_parcels[(tier1_parcels["ZONECLASS"].str.startswith(("C-", "R-")) | (tier1_parcels["ZONECLASS"] == "ES-R") | (tier1_parcels["ZONECLASS"].isna()))]
+    
+    # Add potential capacity to parcels
+    tier1_parcels = add_potential_and_net_capacity(tier1_parcels)
+        
+    ####
+    # Why do these even exist, this is more data cleaning
+    no_potential_cap = tier1_parcels[(tier1_parcels["PotentialCapacity"] == 0) & (tier1_parcels["Units"] != 0)]
 
-        # Add potential capacity to parcels
-        if tier1_parcels is not None:
-            tier1_parcels = add_potential_capacity(tier1_parcels)
+    print(no_potential_cap[["LotSize", "PotentialCapacity", "Units"]])
+    ###
+    
+    two_hundred_ft_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "200ft"]
+    quarter_mile_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "quarter_mile"]
+    half_mile_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "half_mile"]
 
-        # Save processed parcels to local storage
-        if tier1_parcels is not None:
-            save_layer(tier1_parcels, city_name, LAYER_PARCELS, BERKELEY_PARCEL_API)
+    # Print existing units and potential capacity summary by tier zone
+    if 'Units' in tier1_parcels.columns:
+        units_200ft = two_hundred_ft_parcels['Units'].fillna(0).sum()
+        units_quarter = quarter_mile_parcels['Units'].fillna(0).sum()
+        units_half = half_mile_parcels['Units'].fillna(0).sum()
+        total_units = tier1_parcels['Units'].fillna(0).sum()
 
-    if tier1_parcels is not None:
-        two_hundred_ft_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "200ft"]
-        quarter_mile_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "quarter_mile"]
-        half_mile_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "half_mile"]
+        cap_200ft = two_hundred_ft_parcels['PotentialCapacity'].sum()
+        cap_quarter = quarter_mile_parcels['PotentialCapacity'].sum()
+        cap_half = half_mile_parcels['PotentialCapacity'].sum()
+        total_capacity = tier1_parcels['PotentialCapacity'].sum()
 
-        # Print existing units and potential capacity summary by tier zone
-        if 'Units' in tier1_parcels.columns:
-            units_200ft = two_hundred_ft_parcels['Units'].fillna(0).sum()
-            units_quarter = quarter_mile_parcels['Units'].fillna(0).sum()
-            units_half = half_mile_parcels['Units'].fillna(0).sum()
-            total_units = tier1_parcels['Units'].fillna(0).sum()
 
-            cap_200ft = two_hundred_ft_parcels['PotentialCapacity'].sum()
-            cap_quarter = quarter_mile_parcels['PotentialCapacity'].sum()
-            cap_half = half_mile_parcels['PotentialCapacity'].sum()
-            total_capacity = tier1_parcels['PotentialCapacity'].sum()
+        print("\n✓ Capacity Summary by Tier Zone simple:")
+        print(f"  - 200ft zone: {int(units_200ft)} existing / {int(cap_200ft)} potential ({len(two_hundred_ft_parcels)} parcels)")
+        print(f"  - Quarter mile zone: {int(units_quarter)} existing / {int(cap_quarter)} potential ({len(quarter_mile_parcels)} parcels)")
+        print(f"  - Half mile zone: {int(units_half)} existing / {int(cap_half)} potential ({len(half_mile_parcels)} parcels)")
+        print(f"  - Total: {int(total_units)} existing / {int(total_capacity)} potential units")
+        print(f"  - Net new capacity: {int(total_capacity - total_units)} units")
 
-            print("\n✓ Capacity Summary by Tier Zone:")
-            print(f"  - 200ft zone: {int(units_200ft)} existing / {int(cap_200ft)} potential ({len(two_hundred_ft_parcels)} parcels)")
-            print(f"  - Quarter mile zone: {int(units_quarter)} existing / {int(cap_quarter)} potential ({len(quarter_mile_parcels)} parcels)")
-            print(f"  - Half mile zone: {int(units_half)} existing / {int(cap_half)} potential ({len(half_mile_parcels)} parcels)")
-            print(f"  - Total: {int(total_units)} existing / {int(total_capacity)} potential units")
-            print(f"  - Net new capacity: {int(total_capacity - total_units)} units")
+        net_increase_cap_200ft = two_hundred_ft_parcels['NetIncreaseCapacity'].sum()
+        net_increase_cap_quarter = quarter_mile_parcels['NetIncreaseCapacity'].sum()
+        net_increase_cap_half = half_mile_parcels['NetIncreaseCapacity'].sum()
+        net_increase_total_capacity = tier1_parcels['NetIncreaseCapacity'].sum()
 
-        add_parcels(m, two_hundred_ft_parcels, color="red", name="200ft Parcels (0-200ft)")
-        add_parcels(m, quarter_mile_parcels, color="green", name="Quarter Mile Parcels (200ft-0.25mi)")
-        add_parcels(m, half_mile_parcels, color="blue", name="Half Mile Parcels (0.25-0.5mi)")
+        print("\n✓ Capacity Summary by Tier Zone w/ net increase calculations:")
+        print(f"  - 200ft zone: {int(units_200ft)} existing / {int(net_increase_cap_200ft)} potential ({len(two_hundred_ft_parcels)} parcels)")
+        print(f"  - Quarter mile zone: {int(units_quarter)} existing / {int(net_increase_cap_quarter)} potential ({len(quarter_mile_parcels)} parcels)")
+        print(f"  - Half mile zone: {int(units_half)} existing / {int(net_increase_cap_half)} potential ({len(half_mile_parcels)} parcels)")
+        print(f"  - Total: {int(total_units)} existing / {int(net_increase_total_capacity)} potential units")
+        print(f"  - Net new capacity: {int(net_increase_total_capacity)} units")
 
+    add_parcels_to_folium(m, two_hundred_ft_parcels, color="red", name="200ft Parcels (0-200ft)")
+    add_parcels_to_folium(m, quarter_mile_parcels, color="green", name="Quarter Mile Parcels (200ft-0.25mi)")
+    add_parcels_to_folium(m, half_mile_parcels, color="blue", name="Half Mile Parcels (0.25-0.5mi)")
 
     m.save('city_boundary.html')
     print("\n✓ Map saved to city_boundary.html")

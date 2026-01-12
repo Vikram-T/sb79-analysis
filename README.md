@@ -82,9 +82,11 @@ Edit `config.py` to customize:
 - Data caching behavior (`USE_LOCAL_DATA`)
 - Map display settings
 
-## Future Goals
+## TODOs
 
-- Compare SB-79 capacity to local planning capacity to verify compliance
-- Extend analysis to other California cities
-- Add filtering by existing zoning type
-- Generate comparative reports and statistics
+
+- [ ] Figure out why some parcels are overlapping
+- [ ] Figure out why some parcels show 0 LotSize but have a large number of existing units
+- [ ] Confirm the Net Capacity Calculation with someone 
+- [ ] Look into making  API request batching a generic so we don't repeat functionality get_zoning_districts and get_parcels_near_transit_stops 
+- [ ] Look into moving data saving out of this function so we always pull from local data and update with a different function 
