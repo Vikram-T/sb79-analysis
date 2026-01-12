@@ -6,7 +6,7 @@ import folium
 import json
 
 # California State Geoportal - City Boundaries
-from config import CITY_BOUNDARIES_URL, HIGH_QUALITY_TRANSIT_STOPS_URL, ALAMEDA_PARCEL_API
+from config import BERKELEY_PARCEL_API, CITY_BOUNDARIES_URL, HIGH_QUALITY_TRANSIT_STOPS_URL, BERKELEY_ZONING_API
 
 def get_city_boundary(city_name):
     """
@@ -181,7 +181,6 @@ def get_tier1_parcels(parcel_api, transit_stops, city_name):
     half_mile_parcels = get_parcels_near_transit_stops(
         parcel_api, transit_stops, 0.5, city_name, zone_tag='half_mile'
     )
-
     if half_mile_parcels is None:
         return None
 
@@ -226,6 +225,141 @@ def get_tier1_parcels(parcel_api, transit_stops, city_name):
 
     return all_parcels
 
+def get_zoning_districts(city_boundary):
+    """
+    Fetch all zoning districts within a city boundary from Berkeley's GIS.
+
+    Args:
+        city_boundary: GeoDataFrame containing the city boundary
+
+    Returns:
+        GeoDataFrame containing zoning districts, or None if error
+    """
+    coords = list(city_boundary.geometry.iloc[0].exterior.coords)
+    esri_geometry = {
+        "rings": [coords],
+        "spatialReference": {"wkid": 4326}
+    }
+
+    zoning_params = {
+        'where': '1=1',
+        'geometry': json.dumps(esri_geometry),
+        'geometryType': 'esriGeometryPolygon',
+        'inSR': '4326',
+        'spatialRel': 'esriSpatialRelIntersects',
+        'outFields': 'OBJECTID,ZONECLASS,ZONEDESC',
+        'outSR': '4326',
+        'f': 'geojson'
+    }
+
+    zones_list = []
+    offset = 0
+    batch_size = 2000
+    remaining_records = True
+
+    try:
+        while remaining_records:
+            zoning_params["resultOffset"] = offset
+            zoning_params["resultRecordCount"] = batch_size
+
+            response = requests.post(BERKELEY_ZONING_API, data=zoning_params)
+
+            if response.status_code != 200:
+                print(f"Error fetching zoning districts: HTTP {response.status_code}")
+                return None
+
+            response_json = response.json()
+
+            if 'error' in response_json:
+                print(f"Error fetching zoning districts: {response_json['error']}")
+                return None
+
+            if 'features' not in response_json or len(response_json['features']) == 0:
+                if len(zones_list) == 0:
+                    print("No zoning districts found")
+                    return None
+                break
+
+            zone_json = response_json['features']
+            zones_list.extend(zone_json)
+
+            remaining_records = response_json.get("properties", {}).get("exceededTransferLimit", False)
+            print(f"   Fetched zoning batch at offset {offset}: {len(zone_json)} zones (total: {len(zones_list)})")
+            offset += batch_size
+
+        zones = gpd.GeoDataFrame.from_features(zones_list)
+        zones = zones.set_crs(epsg=4326)
+        print(f"✓ Found {len(zones)} zoning districts")
+        return zones
+
+    except Exception as e:
+        print(f"Error fetching zoning districts: {e}")
+        return None
+
+def add_zoning_to_parcels(parcels, zoning_districts):
+    """
+    Add zoning information to parcels using spatial join.
+
+    Args:
+        parcels: GeoDataFrame containing parcel data
+        zoning_districts: GeoDataFrame containing zoning data
+
+    Returns:
+        GeoDataFrame with ZONECLASS and ZONEDESC columns added
+    """
+    if parcels is None or zoning_districts is None:
+        return parcels
+
+    # Ensure both have CRS set
+    if parcels.crs is None:
+        parcels = parcels.set_crs(epsg=4326)
+    if zoning_districts.crs is None:
+        zoning_districts = zoning_districts.set_crs(epsg=4326)
+
+    # Project to UTM Zone 10N (EPSG:32610) for accurate centroid calculation
+    parcels_projected = parcels.to_crs(epsg=32610)
+    zoning_projected = zoning_districts.to_crs(epsg=32610)
+
+    # Create centroids in projected CRS for accurate zone matching
+    parcels_with_centroids = parcels_projected.copy()
+    parcels_with_centroids['centroid'] = parcels_with_centroids.geometry.centroid
+    parcels_with_centroids = parcels_with_centroids.set_geometry('centroid')
+
+    # Spatial join to find which zone each parcel centroid falls in
+    joined = gpd.sjoin(
+        parcels_with_centroids,
+        zoning_projected[['ZONECLASS', 'ZONEDESC', 'geometry']],
+        how='left',
+        predicate='within'
+    )
+
+    # Restore original geometry (in WGS84) and drop centroid column
+    joined = joined.set_geometry(parcels.geometry)
+    joined = joined.drop(columns=['centroid', 'index_right'], errors='ignore')
+    joined = joined.set_crs(epsg=4326)
+
+    # Handle duplicates (parcel centroid in multiple zones - take first)
+    if 'APN' in joined.columns:
+        joined = joined.drop_duplicates(subset=['APN'], keep='first')
+
+    # Report stats
+    matched = joined['ZONECLASS'].notna().sum()
+    unmatched = joined['ZONECLASS'].isna().sum()
+    total = len(joined)
+    print(f"✓ Added zoning info: {matched}/{total} parcels matched to zones")
+
+    # Print parcels without zones
+    if unmatched > 0:
+        print(f"\n⚠ {unmatched} parcels have no zone assigned:")
+        no_zone_parcels = joined[joined['ZONECLASS'].isna()]
+        for _, parcel in no_zone_parcels.iterrows():
+            apn = parcel.get('APN', 'N/A')
+            address = parcel.get('SitusAddress', 'N/A')
+            tier = parcel.get('tier1_zone', 'N/A')
+            print(f"  - APN: {apn}, Address: {address}, Tier: {tier}")
+
+    return joined
+
 def add_parcels(map_obj, parcels, color='orange', name='Parcels'):
     """
     Add parcel polygons to a folium map.
@@ -251,6 +385,14 @@ def add_parcels(map_obj, parcels, color='orange', name='Parcels'):
     if 'SitusCity' in parcels.columns:
         tooltip_fields.append('SitusCity')
         tooltip_aliases.append('City:')
+
+    if 'ZONECLASS' in parcels.columns:
+        tooltip_fields.append('ZONECLASS')
+        tooltip_aliases.append('Zone:')
+
+    if 'ZONEDESC' in parcels.columns:
+        tooltip_fields.append('ZONEDESC')
+        tooltip_aliases.append('Zone Desc:')
 
     # Fallback to OBJECTID if no other fields available
     if not tooltip_fields:
@@ -337,6 +479,9 @@ def main():
 
     print(f"\n✓ Found {len(transit_stops)} transit stops in {city_name}")
 
+    # Get zoning districts
+    zoning_districts = get_zoning_districts(city_geojson)
+
     # Create folium map
     bounds = city_geojson.total_bounds
     center_lat = (bounds[1] + bounds[3]) / 2
@@ -351,7 +496,11 @@ def main():
     # Add map layers
     add_city_boundary(m, city_geojson)
     add_transit_stops(m, transit_stops)
-    tier1_parcels = get_tier1_parcels(ALAMEDA_PARCEL_API, transit_stops, "Berkeley")
+    tier1_parcels = get_tier1_parcels(BERKELEY_PARCEL_API, transit_stops, "Berkeley")
+
+    # Add zoning info to parcels
+    if tier1_parcels is not None and zoning_districts is not None:
+        tier1_parcels = add_zoning_to_parcels(tier1_parcels, zoning_districts)
 
     if tier1_parcels is not None:
         two_hundred_ft_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "200ft"]
