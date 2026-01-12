@@ -4,10 +4,9 @@ A geospatial analysis tool to visualize California Senate Bill 79 (SB-79) housin
 
 ## What is SB-79?
 
-SB-79 is California housing legislation that allows increased residential density near high-quality transit stops. The law establishes three distance-based tiers:
-- **200ft zone**: Up to 160 units/acre (0-200 feet from transit)
-- **Quarter-mile zone**: Up to 120 units/acre (200ft - 0.25 miles from transit)
-- **Half-mile zone**: Up to 100 units/acre (0.25 - 0.5 miles from transit)
+SB-79 is California housing legislation that allows increased residential density near high-quality transit stops. 
+
+For more details take a look at the legislation: https://leginfo.legislature.ca.gov/faces/billTextClient.xhtml?bill_id=202520260SB79 or the pdf in this repo
 
 ## Features
 
@@ -16,7 +15,7 @@ SB-79 is California housing legislation that allows increased residential densit
 - Calculates potential housing capacity for each parcel based on lot size and density limits
 - Generates interactive Folium maps with color-coded parcel layers
 - Supports local data caching (GeoPackage format) to reduce API calls
-- Currently configured for Berkeley, CA (easily adaptable to other California cities)
+- Currently configured for Berkeley, CA 
 
 ## Project Structure
 
@@ -64,7 +63,20 @@ This loads data from the local GeoPackage, which is much faster.
 
 ### Viewing Results
 
-Open `city_boundary.html` in a web browser to explore the interactive map. The map includes:
+The script will output some calculations on the net capacity increase
+
+Example:
+```bash
+
+✓ Capacity Summary by Tier Zone w/ net increase calculations:
+  - 200ft zone: 452 existing / 3155 potential (24 parcels)
+  - Quarter mile zone: 6675 existing / 24843 potential (1696 parcels)
+  - Half mile zone: 22380 existing / 56648 potential (5432 parcels)
+  - Total: 29507 existing / 84647 potential units
+  - Net new capacity: 84647 units
+```
+
+It will also output `city_boundary.html` an interactive map. The map includes:
 - City boundary (blue outline)
 - High-quality transit stops (red markers)
 - Parcels color-coded by tier:
