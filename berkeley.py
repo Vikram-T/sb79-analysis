@@ -6,7 +6,14 @@ import folium
 import json
 
 # California State Geoportal - City Boundaries
-from config import BERKELEY_PARCEL_API, CITY_BOUNDARIES_URL, HIGH_QUALITY_TRANSIT_STOPS_URL, BERKELEY_ZONING_API
+from config import (
+    BERKELEY_PARCEL_API, CITY_BOUNDARIES_URL, HIGH_QUALITY_TRANSIT_STOPS_URL, BERKELEY_ZONING_API,
+    DENSITY_200FT, DENSITY_QUARTER_MILE, DENSITY_HALF_MILE, USE_LOCAL_DATA
+)
+from data_store import (
+    save_layer, load_layer,
+    LAYER_CITY_BOUNDARY, LAYER_TRANSIT_STOPS, LAYER_ZONING, LAYER_PARCELS
+)
 
 def get_city_boundary(city_name):
     """
@@ -360,6 +367,47 @@ def add_zoning_to_parcels(parcels, zoning_districts):
 
     return joined
 
+def add_potential_capacity(parcels):
+    """
+    Calculate potential unit capacity for each parcel based on tier zone and lot size.
+
+    Args:
+        parcels: GeoDataFrame containing parcel data with 'tier1_zone' and 'LotSize' columns
+
+    Returns:
+        GeoDataFrame with 'PotentialCapacity' column added
+    """
+    if parcels is None:
+        return parcels
+
+    # Conversion: 1 acre = 43,560 square feet
+    SQFT_PER_ACRE = 43560
+
+    # Map tier zones to density limits
+    density_map = {
+        '200ft': DENSITY_200FT,
+        'quarter_mile': DENSITY_QUARTER_MILE,
+        'half_mile': DENSITY_HALF_MILE
+    }
+
+    def calc_capacity(row):
+        lot_size = row.get('LotSize', 0) or 0
+        tier_zone = row.get('tier1_zone', '')
+        density = density_map.get(tier_zone, 0)
+
+        # Convert lot size from sq ft to acres and multiply by density
+        acres = lot_size / SQFT_PER_ACRE
+        return acres * density
+
+    parcels['PotentialCapacity'] = parcels.apply(calc_capacity, axis=1)
+
+    # Print summary
+    total_capacity = parcels['PotentialCapacity'].sum()
+    print(f"\n✓ Calculated potential capacity for {len(parcels)} parcels")
+    print(f"  Using densities: 200ft={DENSITY_200FT}, quarter_mile={DENSITY_QUARTER_MILE}, half_mile={DENSITY_HALF_MILE} units/acre")
+
+    return parcels
+
 def add_parcels(map_obj, parcels, color='orange', name='Parcels'):
     """
     Add parcel polygons to a folium map.
@@ -393,6 +441,14 @@ def add_parcels(map_obj, parcels, color='orange', name='Parcels'):
     if 'ZONEDESC' in parcels.columns:
         tooltip_fields.append('ZONEDESC')
         tooltip_aliases.append('Zone Desc:')
+
+    if 'Units' in parcels.columns:
+        tooltip_fields.append('Units')
+        tooltip_aliases.append('Existing Units:')
+
+    if 'PotentialCapacity' in parcels.columns:
+        tooltip_fields.append('PotentialCapacity')
+        tooltip_aliases.append('Potential Capacity:')
 
     # Fallback to OBJECTID if no other fields available
     if not tooltip_fields:
@@ -467,20 +523,53 @@ def add_transit_stops(map_obj, transit_stops):
 def main():
     city_name = "Berkeley"
 
-    # Get city boundary
-    city_geojson = get_city_boundary(city_name)
-    if city_geojson is None:
-        return
+    if USE_LOCAL_DATA:
+        print("\n=== Loading data from local storage ===")
+        # Load from local GeoPackage
+        city_geojson = load_layer(city_name, LAYER_CITY_BOUNDARY)
+        transit_stops = load_layer(city_name, LAYER_TRANSIT_STOPS)
+        zoning_districts = load_layer(city_name, LAYER_ZONING)
+        tier1_parcels = load_layer(city_name, LAYER_PARCELS)
 
-    # Get transit stops within boundary
-    transit_stops = get_transit_stops(city_geojson)
-    if transit_stops is None:
-        return
+        missing = []
+        if city_geojson is None:
+            missing.append("city_boundary")
+        if transit_stops is None:
+            missing.append("transit_stops")
+        if zoning_districts is None:
+            missing.append("zoning_districts")
+        if tier1_parcels is None:
+            missing.append("parcels")
+
+        if missing:
+            print(f"\n✗ Missing local data: {', '.join(missing)}")
+            print("  Set USE_LOCAL_DATA=False in config.py to fetch from API.")
+            return
+    else:
+        print("\n=== Fetching data from APIs ===")
+        # Get city boundary
+        city_geojson = get_city_boundary(city_name)
+        if city_geojson is None:
+            return
+        save_layer(city_geojson, city_name, LAYER_CITY_BOUNDARY, CITY_BOUNDARIES_URL)
+
+        # Get transit stops within boundary
+        transit_stops = get_transit_stops(city_geojson)
+        if transit_stops is None:
+            return
+        save_layer(transit_stops, city_name, LAYER_TRANSIT_STOPS, HIGH_QUALITY_TRANSIT_STOPS_URL)
+
+        print(f"\n✓ Found {len(transit_stops)} transit stops in {city_name}")
+
+        # Get zoning districts
+        zoning_districts = get_zoning_districts(city_geojson)
+        if zoning_districts is not None:
+            save_layer(zoning_districts, city_name, LAYER_ZONING, BERKELEY_ZONING_API)
+
+        # Get parcels (will be saved after processing)
+        tier1_parcels = get_tier1_parcels(BERKELEY_PARCEL_API, transit_stops, city_name)
 
     print(f"\n✓ Found {len(transit_stops)} transit stops in {city_name}")
-
-    # Get zoning districts
-    zoning_districts = get_zoning_districts(city_geojson)
 
     # Create folium map
     bounds = city_geojson.total_bounds
@@ -496,16 +585,45 @@ def main():
     # Add map layers
     add_city_boundary(m, city_geojson)
     add_transit_stops(m, transit_stops)
-    tier1_parcels = get_tier1_parcels(BERKELEY_PARCEL_API, transit_stops, "Berkeley")
 
-    # Add zoning info to parcels
-    if tier1_parcels is not None and zoning_districts is not None:
-        tier1_parcels = add_zoning_to_parcels(tier1_parcels, zoning_districts)
+    # Process parcels (add zoning and capacity) if not loading pre-processed data
+    if not USE_LOCAL_DATA:
+        # Add zoning info to parcels
+        if tier1_parcels is not None and zoning_districts is not None:
+            tier1_parcels = add_zoning_to_parcels(tier1_parcels, zoning_districts)
+
+        # Add potential capacity to parcels
+        if tier1_parcels is not None:
+            tier1_parcels = add_potential_capacity(tier1_parcels)
+
+        # Save processed parcels to local storage
+        if tier1_parcels is not None:
+            save_layer(tier1_parcels, city_name, LAYER_PARCELS, BERKELEY_PARCEL_API)
 
     if tier1_parcels is not None:
         two_hundred_ft_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "200ft"]
         quarter_mile_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "quarter_mile"]
         half_mile_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "half_mile"]
+
+        # Print existing units and potential capacity summary by tier zone
+        if 'Units' in tier1_parcels.columns:
+            units_200ft = two_hundred_ft_parcels['Units'].fillna(0).sum()
+            units_quarter = quarter_mile_parcels['Units'].fillna(0).sum()
+            units_half = half_mile_parcels['Units'].fillna(0).sum()
+            total_units = tier1_parcels['Units'].fillna(0).sum()
+
+            cap_200ft = two_hundred_ft_parcels['PotentialCapacity'].sum()
+            cap_quarter = quarter_mile_parcels['PotentialCapacity'].sum()
+            cap_half = half_mile_parcels['PotentialCapacity'].sum()
+            total_capacity = tier1_parcels['PotentialCapacity'].sum()
+
+            print("\n✓ Capacity Summary by Tier Zone:")
+            print(f"  - 200ft zone: {int(units_200ft)} existing / {int(cap_200ft)} potential ({len(two_hundred_ft_parcels)} parcels)")
+            print(f"  - Quarter mile zone: {int(units_quarter)} existing / {int(cap_quarter)} potential ({len(quarter_mile_parcels)} parcels)")
+            print(f"  - Half mile zone: {int(units_half)} existing / {int(cap_half)} potential ({len(half_mile_parcels)} parcels)")
+            print(f"  - Total: {int(total_units)} existing / {int(total_capacity)} potential units")
+            print(f"  - Net new capacity: {int(total_capacity - total_units)} units")
+
         add_parcels(m, two_hundred_ft_parcels, color="red", name="200ft Parcels (0-200ft)")
         add_parcels(m, quarter_mile_parcels, color="green", name="Quarter Mile Parcels (200ft-0.25mi)")
         add_parcels(m, half_mile_parcels, color="blue", name="Half Mile Parcels (0.25-0.5mi)")

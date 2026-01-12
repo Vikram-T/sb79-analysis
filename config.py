@@ -14,6 +14,15 @@ BERKELEY_ZONING_API = "https://gis.cityofberkeley.info/arcgis3/rest/services/Pub
 TIER1_BUFFER_MILES = 0.5
 TIER2_BUFFER_MILES = 0.25
 
+# SB-79 density limits (units per acre)
+DENSITY_200FT = 160  # 0-200ft from transit
+DENSITY_QUARTER_MILE = 120  # 200ft-0.25mi from transit
+DENSITY_HALF_MILE = 100  # 0.25-0.5mi from transit
+
 # Map display settings
 DEFAULT_ZOOM = 13
 MAP_CENTER = [37.8715, -122.2730]  # Berkeley coords
+
+# Data storage settings
+USE_LOCAL_DATA = True  # Set to True to load from local GeoPackage instead of API
+DATA_DIR = "./data"  # Directory for storing local data snapshots
