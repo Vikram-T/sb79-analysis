@@ -147,8 +147,9 @@ def get_parcels_near_transit_stops(parcel_api, transit_stops, distance_miles, ci
             offset += batch_size
         
         parcels = gpd.GeoDataFrame.from_features(parcels_list)
-        # Remove duplicates based on OBJECTID
-        parcels = parcels.drop_duplicates(subset=['OBJECTID'])
+        # Remove duplicates based on APN (Assessor's Parcel Number)
+        # Keep first occurrence to ensure we have one record per physical parcel
+        parcels = parcels.drop_duplicates(subset=['APN'], keep='first')
 
         # Add zone tag if provided
         if zone_tag:
@@ -173,6 +174,9 @@ def get_tier1_parcels(parcel_api, transit_stops, city_name):
     Returns:
         GeoDataFrame with all parcels tagged with their tier1_zone, or None if error
     """
+    # Convert 200ft to miles: 200 / 5280 ≈ 0.0379
+    two_hundred_ft_miles = 200 / 5280
+
     # Get parcels within 0.5 miles (outer zone)
     half_mile_parcels = get_parcels_near_transit_stops(
         parcel_api, transit_stops, 0.5, city_name, zone_tag='half_mile'
@@ -181,7 +185,7 @@ def get_tier1_parcels(parcel_api, transit_stops, city_name):
     if half_mile_parcels is None:
         return None
 
-    # Get parcels within 0.25 miles (inner zone)
+    # Get parcels within 0.25 miles (middle zone)
     quarter_mile_parcels = get_parcels_near_transit_stops(
         parcel_api, transit_stops, 0.25, city_name, zone_tag='quarter_mile'
     )
@@ -189,20 +193,34 @@ def get_tier1_parcels(parcel_api, transit_stops, city_name):
     if quarter_mile_parcels is None:
         return half_mile_parcels
 
-    # Get OBJECTIDs that are in the quarter mile zone
+    # Get parcels within 200ft (inner zone)
+    two_hundred_ft_parcels = get_parcels_near_transit_stops(
+        parcel_api, transit_stops, two_hundred_ft_miles, city_name, zone_tag='200ft'
+    )
+
+    if two_hundred_ft_parcels is None:
+        return quarter_mile_parcels
+
+    # Get OBJECTIDs for each zone
+    two_hundred_ft_objectids = set(two_hundred_ft_parcels['OBJECTID'])
     quarter_mile_objectids = set(quarter_mile_parcels['OBJECTID'])
 
-    # Update half_mile_parcels: remove any that are in quarter_mile zone
+    # Filter quarter_mile to exclude 200ft parcels
+    quarter_mile_only = quarter_mile_parcels[~quarter_mile_parcels['OBJECTID'].isin(two_hundred_ft_objectids)]
+
+    # Filter half_mile to exclude quarter_mile parcels (quarter_mile includes 200ft, so both are excluded)
     half_mile_only = half_mile_parcels[~half_mile_parcels['OBJECTID'].isin(quarter_mile_objectids)]
 
-    # Combine quarter_mile parcels with the remaining half_mile parcels
-    all_parcels = gpd.GeoDataFrame(pd.concat([quarter_mile_parcels, half_mile_only], ignore_index=True))
+    # Combine all zones
+    all_parcels = gpd.GeoDataFrame(pd.concat([two_hundred_ft_parcels, quarter_mile_only, half_mile_only], ignore_index=True))
 
+    two_hundred_ft_count = len(all_parcels[all_parcels['tier1_zone'] == '200ft'])
     quarter_count = len(all_parcels[all_parcels['tier1_zone'] == 'quarter_mile'])
     half_count = len(all_parcels[all_parcels['tier1_zone'] == 'half_mile'])
 
-    print(f"\n✓ Tier 1 Parcel Summary:")
-    print(f"  - Quarter mile zone (0-0.25mi): {quarter_count} parcels")
+    print("\n✓ Tier 1 Parcel Summary:")
+    print(f"  - 200ft zone (0-200ft): {two_hundred_ft_count} parcels")
+    print(f"  - Quarter mile zone (200ft-0.25mi): {quarter_count} parcels")
     print(f"  - Half mile zone (0.25-0.5mi): {half_count} parcels")
     print(f"  - Total: {len(all_parcels)} parcels")
 
@@ -218,6 +236,27 @@ def add_parcels(map_obj, parcels, color='orange', name='Parcels'):
         color: Color for the parcel borders (default: 'orange')
         name: Name for the layer (default: 'Parcels')
     """
+    # Determine tooltip fields based on available columns
+    tooltip_fields = []
+    tooltip_aliases = []
+
+    if 'APN' in parcels.columns:
+        tooltip_fields.append('APN')
+        tooltip_aliases.append('APN:')
+
+    if 'SitusAddress' in parcels.columns:
+        tooltip_fields.append('SitusAddress')
+        tooltip_aliases.append('Address:')
+
+    if 'SitusCity' in parcels.columns:
+        tooltip_fields.append('SitusCity')
+        tooltip_aliases.append('City:')
+
+    # Fallback to OBJECTID if no other fields available
+    if not tooltip_fields:
+        tooltip_fields = ['OBJECTID']
+        tooltip_aliases = ['Parcel ID:']
+
     folium.GeoJson(
         parcels.to_json(),
         name=name,
@@ -225,11 +264,11 @@ def add_parcels(map_obj, parcels, color='orange', name='Parcels'):
             'fillColor': color,
             'color': color,
             'weight': 1,
-            'fillOpacity': 0.3
+            'fillOpacity': 0.2
         },
         tooltip=folium.GeoJsonTooltip(
-            fields=['OBJECTID', 'SitusCity', 'SitusAddress'] if 'SitusAddress' in parcels.columns else ['OBJECTID', 'SitusCity'],
-            aliases=['Parcel ID:', 'City:', 'Address:'] if 'SitusAddress' in parcels.columns else ['Parcel ID:', 'City:'],
+            fields=tooltip_fields,
+            aliases=tooltip_aliases,
             localize=True
         )
     ).add_to(map_obj)
@@ -263,7 +302,7 @@ def add_transit_stops(map_obj, transit_stops):
         map_obj: Folium Map object to add the markers to
         transit_stops: GeoDataFrame containing transit stop data
     """
-    for idx, stop in transit_stops.iterrows():
+    for _, stop in transit_stops.iterrows():
         popup_html = f"""
         <b>Transit Stop Details</b><br>
         <b>OBJECTID:</b> {stop.get('OBJECTID', 'N/A')}<br>
@@ -283,72 +322,6 @@ def add_transit_stops(map_obj, transit_stops):
             fillOpacity=0.7
         ).add_to(map_obj)
 
-def add_tier1_quarter_mile_zones(map_obj, transit_stops):
-    """
-    Add 1/4 mile radius circles around transit stops showing SB-79 Tier 1 zones.
-
-    Args:
-        map_obj: Folium Map object to add the circles to
-        transit_stops: GeoDataFrame containing transit stop data
-    """
-    sb79_popup_html = """
-    <div style="font-family: Arial, sans-serif;">
-        <h2>Tier 1 Quarter Mile</h2>
-        <p><b>(3)</b> For a transit-oriented housing development project within one-quarter mile of a Tier 1 transit-oriented development stop, all of the following apply:</p>
-        <p style="margin-left: 20px;"><b>(A)</b> A local government shall not impose any height limit less than 75 feet.</p>
-        <p style="margin-left: 20px;"><b>(B)</b> A local government shall not impose any maximum density of less than 120 dwelling units per acre.</p>
-        <p style="margin-left: 20px;"><b>(C)</b> A local government shall not enforce any other local development standard or combination of standards that would physically preclude achieving a residential floor area ratio of up to 3.5.</p>
-        <p style="margin-left: 20px;"><b>(D)</b> A development that achieves a minimum density of 90 dwelling units per acre and that otherwise meets the eligibility requirements of Section 65915, including, but not limited to, affordability requirements, shall be eligible for additional concessions pursuant to Section 65915, as specified in subdivision (d).</p>
-    </div>
-    """
-
-    # 0.25 miles in meters (folium.Circle requires radius in meters)
-    quarter_mile_meters = 0.25 * 1609.34
-
-    for idx, stop in transit_stops.iterrows():
-        folium.Circle(
-            location=[stop.geometry.y, stop.geometry.x],
-            radius=quarter_mile_meters,
-            popup=folium.Popup(sb79_popup_html, max_width=400),
-            color='green',
-            fill=True,
-            fillColor='green',
-            fillOpacity=0.2
-        ).add_to(map_obj)
-
-def add_tier1_half_mile_zones(map_obj, transit_stops):
-    """
-    Add 1/2 mile radius circles around transit stops showing SB-79 Tier 1 half-mile zones.
-
-    Args:
-        map_obj: Folium Map object to add the circles to
-        transit_stops: GeoDataFrame containing transit stop data
-    """
-    sb79_popup_html = """
-    <div style="font-family: Arial, sans-serif;">
-        <h2>Tier 1 Quarter to Half Mile</h2>
-        <p><b>(4)</b> For a transit-oriented housing development project further than one-quarter mile but within one-half mile of a Tier 1 transit-oriented development stop, and within a city with a population of at least 35,000, all of the following apply:</p>
-        <p style="margin-left: 20px;"><b>(A)</b> A local government shall not impose any height limit less than 65 feet.</p>
-        <p style="margin-left: 20px;"><b>(B)</b> A local government shall not impose any maximum density standard of less than 100 dwelling units per acre.</p>
-        <p style="margin-left: 20px;"><b>(C)</b> A local government shall not enforce any other local development standard or combination of standards that would physically preclude achieving a residential floor area ratio of up to 3.</p>
-        <p style="margin-left: 20px;"><b>(D)</b> A development that achieves a minimum density of 75 dwelling units per acre and that otherwise meets the eligibility requirements of Section 65915, including, but not limited to, affordability requirements, shall be eligible for additional concessions pursuant to Section 65915, as specified in subdivision (d).</p>
-    </div>
-    """
-
-    # 0.5 miles in meters (folium.Circle requires radius in meters)
-    half_mile_meters = 0.5 * 1609.34
-
-    for idx, stop in transit_stops.iterrows():
-        folium.Circle(
-            location=[stop.geometry.y, stop.geometry.x],
-            radius=half_mile_meters,
-            popup=folium.Popup(sb79_popup_html, max_width=400),
-            color='blue',
-            fill=True,
-            fillColor='blue',
-            fillOpacity=0.15
-        ).add_to(map_obj)
-
 def main():
     city_name = "Berkeley"
 
@@ -363,8 +336,6 @@ def main():
         return
 
     print(f"\n✓ Found {len(transit_stops)} transit stops in {city_name}")
-    if len(transit_stops) > 0:
-        print(transit_stops)
 
     # Create folium map
     bounds = city_geojson.total_bounds
@@ -379,17 +350,16 @@ def main():
 
     # Add map layers
     add_city_boundary(m, city_geojson)
-    # add_tier1_half_mile_zones(m, transit_stops)
-    # add_tier1_quarter_mile_zones(m, transit_stops)
     add_transit_stops(m, transit_stops)
     tier1_parcels = get_tier1_parcels(ALAMEDA_PARCEL_API, transit_stops, "Berkeley")
 
     if tier1_parcels is not None:
+        two_hundred_ft_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "200ft"]
         quarter_mile_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "quarter_mile"]
         half_mile_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "half_mile"]
-    
-    add_parcels(m, quarter_mile_parcels, color="green", name="Quarter Mile Parcels (0-0.25mi)")
-    add_parcels(m, half_mile_parcels, color="blue", name="Half Mile Parcels (0.25-0.5mi)")
+        add_parcels(m, two_hundred_ft_parcels, color="red", name="200ft Parcels (0-200ft)")
+        add_parcels(m, quarter_mile_parcels, color="green", name="Quarter Mile Parcels (200ft-0.25mi)")
+        add_parcels(m, half_mile_parcels, color="blue", name="Half Mile Parcels (0.25-0.5mi)")
 
 
     m.save('city_boundary.html')
