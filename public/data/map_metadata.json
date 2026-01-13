@@ -21,6 +21,12 @@
     "parcels_half_mile": 4762,
     "total_existing_units": 20805,
     "total_potential_capacity": 101739,
-    "net_increase_capacity": 83430
+    "net_increase_capacity": 83430,
+    "existing_units_200ft": 121,
+    "existing_units_quarter": 6012,
+    "existing_units_half": 14672,
+    "net_increase_capacity_200ft": 3155,
+    "net_increase_capacity_quarter": 24595,
+    "net_increase_capacity_half": 55678
   }
 }

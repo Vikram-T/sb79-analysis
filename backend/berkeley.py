@@ -635,9 +635,8 @@ def main():
 
     export_geojson(city_geojson, data_dir / 'city_boundary.geojson')
     export_geojson(transit_stops, data_dir / 'transit_stops.geojson')
-    export_geojson(two_hundred_ft_parcels, data_dir / 'parcels_200ft.geojson')
-    export_geojson(quarter_mile_parcels, data_dir / 'parcels_quarter_mile.geojson')
-    export_geojson(half_mile_parcels, data_dir / 'parcels_half_mile.geojson')
+    # Export all parcels in a single file - they already have tier1_zone property for filtering
+    export_geojson(tier1_parcels, data_dir / 'parcels.geojson')
 
     # Calculate map bounds for MapLibre
     bounds = city_geojson.total_bounds
@@ -656,7 +655,13 @@ def main():
             'parcels_half_mile': len(half_mile_parcels),
             'total_existing_units': int(total_units) if 'Units' in tier1_parcels.columns else 0,
             'total_potential_capacity': int(total_capacity) if 'PotentialCapacity' in tier1_parcels.columns else 0,
-            'net_increase_capacity': int(net_increase_total_capacity) if 'NetIncreaseCapacity' in tier1_parcels.columns else 0
+            'net_increase_capacity': int(net_increase_total_capacity) if 'NetIncreaseCapacity' in tier1_parcels.columns else 0,
+            'existing_units_200ft': int(units_200ft) if 'Units' in tier1_parcels.columns else 0,
+            'existing_units_quarter': int(units_quarter) if 'Units' in tier1_parcels.columns else 0,
+            'existing_units_half': int(units_half) if 'Units' in tier1_parcels.columns else 0,
+            'net_increase_capacity_200ft': int(net_increase_cap_200ft) if 'NetIncreaseCapacity' in tier1_parcels.columns else 0,
+            'net_increase_capacity_quarter': int(net_increase_cap_quarter) if 'NetIncreaseCapacity' in tier1_parcels.columns else 0,
+            'net_increase_capacity_half': int(net_increase_cap_half) if 'NetIncreaseCapacity' in tier1_parcels.columns else 0
         }
     }
 

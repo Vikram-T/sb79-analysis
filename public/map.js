@@ -53,6 +53,17 @@ function updateInfoPanel(metadata) {
     document.getElementById('stat-existing').textContent = metadata.stats.total_existing_units.toLocaleString();
     document.getElementById('stat-capacity').textContent = metadata.stats.total_potential_capacity.toLocaleString();
     document.getElementById('stat-net').textContent = metadata.stats.net_increase_capacity.toLocaleString();
+
+    // Update zone-specific statistics
+    document.getElementById('stat-200ft-parcels').textContent = metadata.stats.parcels_200ft.toLocaleString();
+    document.getElementById('stat-200ft-existing').textContent = metadata.stats.existing_units_200ft.toLocaleString();
+    document.getElementById('stat-200ft-capacity').textContent = metadata.stats.net_increase_capacity_200ft.toLocaleString();
+    document.getElementById('stat-quarter-parcels').textContent = metadata.stats.parcels_quarter_mile.toLocaleString();
+    document.getElementById('stat-quarter-existing').textContent = metadata.stats.existing_units_quarter.toLocaleString();
+    document.getElementById('stat-quarter-capacity').textContent = metadata.stats.net_increase_capacity_quarter.toLocaleString();
+    document.getElementById('stat-half-parcels').textContent = metadata.stats.parcels_half_mile.toLocaleString();
+    document.getElementById('stat-half-existing').textContent = metadata.stats.existing_units_half.toLocaleString();
+    document.getElementById('stat-half-capacity').textContent = metadata.stats.net_increase_capacity_half.toLocaleString();
 }
 
 function loadDataSources() {
@@ -68,20 +79,10 @@ function loadDataSources() {
         data: 'data/transit_stops.geojson'
     });
 
-    // Add parcel sources
-    map.addSource('parcels-200ft', {
+    // Add single parcel source - all parcels with tier1_zone property
+    map.addSource('parcels', {
         type: 'geojson',
-        data: 'data/parcels_200ft.geojson'
-    });
-
-    map.addSource('parcels-quarter-mile', {
-        type: 'geojson',
-        data: 'data/parcels_quarter_mile.geojson'
-    });
-
-    map.addSource('parcels-half-mile', {
-        type: 'geojson',
-        data: 'data/parcels_half_mile.geojson'
+        data: 'data/parcels.geojson'
     });
 
     // Add layers
@@ -111,11 +112,12 @@ function addLayers() {
         }
     });
 
-    // Half mile parcels (bottom layer)
+    // Half mile parcels (bottom layer) - filtered from single source
     map.addLayer({
         id: 'parcels-half-fill',
         type: 'fill',
-        source: 'parcels-half-mile',
+        source: 'parcels',
+        filter: ['==', ['get', 'tier1_zone'], 'half_mile'],
         paint: {
             'fill-color': 'blue',
             'fill-opacity': 0.4
@@ -125,18 +127,20 @@ function addLayers() {
     map.addLayer({
         id: 'parcels-half-line',
         type: 'line',
-        source: 'parcels-half-mile',
+        source: 'parcels',
+        filter: ['==', ['get', 'tier1_zone'], 'half_mile'],
         paint: {
             'line-color': 'blue',
             'line-width': 1
         }
     });
 
-    // Quarter mile parcels
+    // Quarter mile parcels - filtered from single source
     map.addLayer({
         id: 'parcels-quarter-fill',
         type: 'fill',
-        source: 'parcels-quarter-mile',
+        source: 'parcels',
+        filter: ['==', ['get', 'tier1_zone'], 'quarter_mile'],
         paint: {
             'fill-color': 'green',
             'fill-opacity': 0.4
@@ -146,18 +150,20 @@ function addLayers() {
     map.addLayer({
         id: 'parcels-quarter-line',
         type: 'line',
-        source: 'parcels-quarter-mile',
+        source: 'parcels',
+        filter: ['==', ['get', 'tier1_zone'], 'quarter_mile'],
         paint: {
             'line-color': 'green',
             'line-width': 1
         }
     });
 
-    // 200ft parcels (top layer)
+    // 200ft parcels (top layer) - filtered from single source
     map.addLayer({
         id: 'parcels-200ft-fill',
         type: 'fill',
-        source: 'parcels-200ft',
+        source: 'parcels',
+        filter: ['==', ['get', 'tier1_zone'], '200ft'],
         paint: {
             'fill-color': 'red',
             'fill-opacity': 0.4
@@ -167,7 +173,8 @@ function addLayers() {
     map.addLayer({
         id: 'parcels-200ft-line',
         type: 'line',
-        source: 'parcels-200ft',
+        source: 'parcels',
+        filter: ['==', ['get', 'tier1_zone'], '200ft'],
         paint: {
             'line-color': 'red',
             'line-width': 1

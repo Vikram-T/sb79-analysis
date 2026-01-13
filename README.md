@@ -38,9 +38,7 @@ sb79-analysis/
 │   └── data/                # Generated GeoJSON files (for map)
 │       ├── city_boundary.geojson
 │       ├── transit_stops.geojson
-│       ├── parcels_200ft.geojson
-│       ├── parcels_quarter_mile.geojson
-│       ├── parcels_half_mile.geojson
+│       ├── parcels.geojson
 │       └── map_metadata.json
 ├── 20250SB79_84.pdf          # SB-79 legislation text
 ├── pyproject.toml            # Python dependencies (uv)
@@ -116,22 +114,6 @@ python -m http.server 8000
 # Open http://localhost:8000 in your browser
 ```
 
-**Deploy to Cloudflare Pages:**
-1. Push your repository to GitHub
-2. Connect to Cloudflare Pages
-3. Set build directory to `public`
-4. Deploy!
-
-The map includes:
-- **Layer Controls**: Toggle visibility of city boundary, transit stops, and parcel zones
-- **Opacity Control**: Adjust transparency of parcel layers (0-100%)
-- **Interactive Popups**: Click parcels to see details 
-
-**Parcel color-coding by tier:**
-- Red: 200ft zone (0-200ft from transit)
-- Green: Quarter-mile zone (200ft - 0.25mi)
-- Blue: Half-mile zone (0.25 - 0.5mi)
-
 ## Configuration
 
 Edit `config.py` to customize:
@@ -145,3 +127,4 @@ Edit `config.py` to customize:
 - [ ] Confirm the Net Capacity Calculation with someone 
 - [ ] Look into making  API request batching a generic so we don't repeat functionality get_zoning_districts and get_parcels_near_transit_stops 
 - [ ] Look into moving data saving out of this function so we always pull from local data and update with a different function 
+- [ ] Adding zones to be deferred to next cycle ()
