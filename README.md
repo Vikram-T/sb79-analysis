@@ -10,20 +10,40 @@ For more details take a look at the legislation: https://leginfo.legislature.ca.
 
 ## Features
 
-- Fetches city boundaries, transit stops, parcels, and zoning data from California State APIs
-- Categorizes parcels into SB-79 tiers based on distance from high-quality transit stops
-- Calculates potential housing capacity for each parcel based on lot size and density limits
-- Generates interactive Folium maps with color-coded parcel layers
-- Supports local data caching (GeoPackage format) to reduce API calls
-- Currently configured for Berkeley, CA 
+- **Automated Data Collection**: Can pull real-time data from California State APIs (city boundaries, transit stops, parcels, zoning)
+- **SB-79 Tier Classification**: Categorizes parcels by distance from transit stops (200ft, quarter-mile, half-mile zones)
+- **Capacity Calculations**: Computes potential and net increase housing capacity per SB-79 regulations
+- **Interactive 3D Maps**: MapLibre GL JS visualization with toggleable layers, opacity controls, and height-scaled 3D view
+- **Local Caching**: GeoPackage storage for faster repeat runs without API calls
+- **Static Deployment**: Frontend deployable to any static hosting (Cloudflare Pages, Netlify, etc.)
+- **Currently Supports**: Berkeley, CA 
 
 ## Project Structure
 
-- `berkeley.py` - Main analysis script that fetches data, processes parcels, and generates maps
-- `config.py` - Configuration file with API endpoints, SB-79 density parameters, and settings
-- `data_store.py` - Local data storage module for caching GeoDataFrames
-- `data/` - Directory for local GeoPackage data snapshots
-- `city_boundary.html` - Generated interactive map (output)
+```
+sb79-analysis/
+├── backend/                    # Python data processing
+│   ├── berkeley.py            # Main script to fetch and process data
+│   ├── config.py              # Configuration and API endpoints
+│   ├── data_store.py          # Local data storage utilities (GeoPackage)
+│   └── data/                  # Cached data (generated)
+│       ├── berkeley_data.gpkg              # GeoPackage with all layers
+│       └── berkeley_data.metadata.json     # Data source metadata
+├── public/                    # Frontend (static site - deployment ready)
+│   ├── index.html            # Main map interface
+│   ├── style.css             # Styles
+│   ├── map.js               # MapLibre GL JS implementation
+│   └── data/                # Generated GeoJSON files (for map)
+│       ├── city_boundary.geojson
+│       ├── transit_stops.geojson
+│       ├── parcels_200ft.geojson
+│       ├── parcels_quarter_mile.geojson
+│       ├── parcels_half_mile.geojson
+│       └── map_metadata.json
+├── 20250SB79_84.pdf          # SB-79 legislation text
+├── pyproject.toml            # Python dependencies (uv)
+└── README.md
+```
 
 ## How to Use
 
@@ -39,6 +59,7 @@ uv sync
 
 **First run** (fetch data from APIs):
 ```bash
+cd backend
 # In config.py, set: USE_LOCAL_DATA = False
 uv run berkeley.py
 ```
@@ -47,14 +68,19 @@ This will:
 1. Fetch city boundary from California State Geoportal
 2. Fetch high-quality transit stops within Berkeley
 3. Fetch zoning districts from Berkeley's GIS
-4. Fetch all parcels within 0.5 miles of transit stops
-5. Add zoning information to each parcel
-6. Calculate potential capacity based on SB-79 density limits
-7. Save all data to `data/berkeley_data.gpkg` for future use
-8. Generate `city_boundary.html` interactive map
+4. Fetch all parcels within 0.5 miles of transit stops (in three zones: 200ft, quarter-mile, half-mile)
+5. Add zoning information to each parcel using spatial join
+6. Filter for residential, commercial, and mixed-use parcels only (ZONECLASS: R-*, C-*, ES-R)
+7. Calculate potential capacity based on SB-79 density limits and lot size
+8. Calculate net increase capacity: max(potential - existing units, 0) per SB-79 65912.161.(a)(1)
+9. Filter out parcels with zero lot size
+10. Remove duplicate parcels sharing the same centroid (keeps only parcels with BLDSQFTTAXABLE = 0)
+11. Save all data to `backend/berkeley_data.gpkg` for future use
+12. Export GeoJSON files to `public/data/` for the map
 
 **Subsequent runs** (use cached data):
 ```bash
+cd backend
 # In config.py, set: USE_LOCAL_DATA = True
 uv run berkeley.py
 ```
@@ -63,11 +89,10 @@ This loads data from the local GeoPackage, which is much faster.
 
 ### Viewing Results
 
-The script will output some calculations on the net capacity increase
+The script will output capacity calculations:
 
 Example:
 ```bash
-
 ✓ Capacity Summary by Tier Zone w/ net increase calculations:
   - 200ft zone: 452 existing / 3155 potential (24 parcels)
   - Quarter mile zone: 6675 existing / 24843 potential (1696 parcels)
@@ -76,15 +101,30 @@ Example:
   - Net new capacity: 84647 units
 ```
 
-It will also output `city_boundary.html` an interactive map. The map includes:
-- City boundary (blue outline)
-- High-quality transit stops (red markers)
-- Parcels color-coded by tier:
-  - Red: 200ft zone (0-200ft from transit)
-  - Green: Quarter-mile zone (200ft - 0.25mi)
-  - Blue: Half-mile zone (0.25 - 0.5mi)
+### Viewing the Interactive Map
 
-Click on parcels to see details including address, APN, zoning, existing units, and potential capacity.
+**Local Development:**
+```bash
+cd public
+python -m http.server 8000
+# Open http://localhost:8000 in your browser
+```
+
+**Deploy to Cloudflare Pages:**
+1. Push your repository to GitHub
+2. Connect to Cloudflare Pages
+3. Set build directory to `public`
+4. Deploy!
+
+The map includes:
+- **Layer Controls**: Toggle visibility of city boundary, transit stops, and parcel zones
+- **Opacity Control**: Adjust transparency of parcel layers (0-100%)
+- **Interactive Popups**: Click parcels to see details 
+
+**Parcel color-coding by tier:**
+- Red: 200ft zone (0-200ft from transit)
+- Green: Quarter-mile zone (200ft - 0.25mi)
+- Blue: Half-mile zone (0.25 - 0.5mi)
 
 ## Configuration
 
@@ -96,9 +136,6 @@ Edit `config.py` to customize:
 
 ## TODOs
 
-
-- [ ] Figure out why some parcels are overlapping
-- [ ] Figure out why some parcels show 0 LotSize but have a large number of existing units
 - [ ] Confirm the Net Capacity Calculation with someone 
 - [ ] Look into making  API request batching a generic so we don't repeat functionality get_zoning_districts and get_parcels_near_transit_stops 
 - [ ] Look into moving data saving out of this function so we always pull from local data and update with a different function 

@@ -2,8 +2,9 @@ import geopandas as gpd
 import pandas as pd
 import requests
 import urllib
-import folium
 import json
+import os
+from pathlib import Path
 
 # California State Geoportal - City Boundaries
 from config import (
@@ -422,117 +423,108 @@ def add_potential_and_net_capacity(parcels):
 
     return parcels
 
-def add_parcels_to_folium(map_obj, parcels, color='orange', name='Parcels'):
+def filter_zero_lotsize_parcels(parcels):
     """
-    Add parcel polygons to a folium map.
+    Filter out parcels with LotSize = 0.
 
     Args:
-        map_obj: Folium Map object to add the parcels to
+        parcels: GeoDataFrame containing parcel data with 'LotSize' column
+
+    Returns:
+        GeoDataFrame with parcels where LotSize > 0
+    """
+    if parcels is None:
+        return None
+
+    initial_count = len(parcels)
+    filtered_parcels = parcels[parcels['LotSize'] > 0]
+    removed_count = initial_count - len(filtered_parcels)
+
+    print(f"\n✓ Filtered out {removed_count} parcels with LotSize = 0")
+    print(f"  Remaining parcels: {len(filtered_parcels)}")
+
+    return filtered_parcels
+
+def filter_parcels_with_same_centroid(parcels):
+    """
+    Find parcels that share the same centroid coordinates and filter out those with BLDSQFTTAXABLE > 0.
+
+    Args:
         parcels: GeoDataFrame containing parcel data
-        color: Color for the parcel borders (default: 'orange')
-        name: Name for the layer (default: 'Parcels')
+
+    Returns:
+        GeoDataFrame with parcels filtered (removes parcels with BLDSQFTTAXABLE > 0 that share centroids)
     """
-    # Determine tooltip fields based on available columns
-    tooltip_fields = []
-    tooltip_aliases = []
+    if parcels is None or len(parcels) == 0:
+        print("No parcels to analyze")
+        return parcels
 
-    if 'APN' in parcels.columns:
-        tooltip_fields.append('APN')
-        tooltip_aliases.append('APN:')
+    # Ensure CRS is set
+    parcels_copy = parcels.copy()
+    if parcels_copy.crs is None:
+        parcels_copy = parcels_copy.set_crs(epsg=4326)
 
-    if 'SitusAddress' in parcels.columns:
-        tooltip_fields.append('SitusAddress')
-        tooltip_aliases.append('Address:')
+    # Project to UTM Zone 10N (EPSG:32610) for accurate centroid calculation
+    parcels_projected = parcels_copy.to_crs(epsg=32610)
 
-    if 'SitusCity' in parcels.columns:
-        tooltip_fields.append('SitusCity')
-        tooltip_aliases.append('City:')
+    # Calculate centroids in projected CRS
+    parcels_projected['centroid'] = parcels_projected.geometry.centroid
+    parcels_projected['centroid_x'] = parcels_projected['centroid'].x
+    parcels_projected['centroid_y'] = parcels_projected['centroid'].y
 
-    if 'ZONECLASS' in parcels.columns:
-        tooltip_fields.append('ZONECLASS')
-        tooltip_aliases.append('Zone:')
+    # Group by centroid coordinates (rounded to avoid floating point issues)
+    # Using 2 decimal places for meters precision (0.01m = 1cm)
+    parcels_projected['centroid_x_rounded'] = parcels_projected['centroid_x'].round(2)
+    parcels_projected['centroid_y_rounded'] = parcels_projected['centroid_y'].round(2)
 
-    if 'ZONEDESC' in parcels.columns:
-        tooltip_fields.append('ZONEDESC')
-        tooltip_aliases.append('Zone Desc:')
+    # Find duplicates
+    grouped = parcels_projected.groupby(['centroid_x_rounded', 'centroid_y_rounded'])
+    duplicate_groups = grouped.filter(lambda x: len(x) > 1)
 
-    if 'Units' in parcels.columns:
-        tooltip_fields.append('Units')
-        tooltip_aliases.append('Existing Units:')
+    if len(duplicate_groups) == 0:
+        print("\n✓ No parcels with duplicate centroids found")
+        return parcels
 
-    if 'PotentialCapacity' in parcels.columns:
-        tooltip_fields.append('PotentialCapacity')
-        tooltip_aliases.append('Potential Capacity:')
+    print(f"\n⚠ Found {len(duplicate_groups)} parcels sharing centroids:")
+    print(f"  {len(grouped.filter(lambda x: len(x) > 1).groupby(['centroid_x_rounded', 'centroid_y_rounded']))} unique centroid locations have duplicates\n")
 
-    # Fallback to OBJECTID if no other fields available
-    if not tooltip_fields:
-        tooltip_fields = ['OBJECTID']
-        tooltip_aliases = ['Parcel ID:']
+    # Track indices to remove
+    indices_to_remove = set()
 
-    folium.GeoJson(
-        parcels.to_json(),
-        name=name,
-        style_function=lambda x: {
-            'fillColor': color,
-            'color': color,
-            'weight': 1,
-            'fillOpacity': 0.2
-        },
-        tooltip=folium.GeoJsonTooltip(
-            fields=tooltip_fields,
-            aliases=tooltip_aliases,
-            localize=True
-        )
-    ).add_to(map_obj)
+    # Print details for each group and identify parcels to remove
+    for (x, y), group in grouped:
+        if len(group) > 1:
+            # Filter out parcels with BLDSQFTTAXABLE > 0 from this group
+            to_remove = group[group['BLDSQFTTAXABLE'] > 0]
+            indices_to_remove.update(to_remove.index)
 
-def add_city_boundary_to_folium(map_obj, city_geojson):
+    # Remove the identified parcels from the original dataframe
+    filtered_parcels = parcels.drop(index=indices_to_remove, errors='ignore')
+
+    print(f"\n✓ Removed {len(indices_to_remove)} parcels with BLDSQFTTAXABLE > 0 that shared centroids")
+    print(f"  Remaining parcels: {len(filtered_parcels)}")
+
+    return filtered_parcels
+
+def export_geojson(gdf, filename):
     """
-    Add city boundary layer to a folium map.
+    Export a GeoDataFrame to a GeoJSON file.
 
     Args:
-        map_obj: Folium Map object to add the boundary to
-        city_geojson: GeoDataFrame containing the city boundary
+        gdf: GeoDataFrame to export
+        filename: Path to output file (str or Path)
     """
-    city_name = city_geojson.iloc[0]['CDTFA_CITY']
-    folium.GeoJson(
-        city_geojson.to_json(),
-        name=f'{city_name} Boundary',
-        style_function=lambda x: {
-            'fillColor': 'blue',
-            'color': 'darkblue',
-            'weight': 3,
-            'fillOpacity': 0.1
-        },
-        popup=folium.Popup(f"{city_name} boundary", max_width=300)
-    ).add_to(map_obj)
+    if gdf is None or len(gdf) == 0:
+        print(f"⚠ Skipping export of {filename} (no data)")
+        return
 
-def add_transit_stops_to_folium(map_obj, transit_stops):
-    """
-    Add transit stop markers to a folium map.
+    # Convert to Path and create output directory if it doesn't exist
+    filepath = Path(filename)
+    filepath.parent.mkdir(parents=True, exist_ok=True)
 
-    Args:
-        map_obj: Folium Map object to add the markers to
-        transit_stops: GeoDataFrame containing transit stop data
-    """
-    for _, stop in transit_stops.iterrows():
-        popup_html = f"""
-        <b>Transit Stop Details</b><br>
-        <b>OBJECTID:</b> {stop.get('OBJECTID', 'N/A')}<br>
-        <b>Agency:</b> {stop.get('agency_primary', 'N/A')}<br>
-        <b>HQTA Type:</b> {stop.get('hqta_type', 'N/A')}<br>
-        <b>Stop ID:</b> {stop.get('stop_id', 'N/A')}<br>
-        <b>Route ID:</b> {stop.get('route_id', 'N/A')}<br>
-        <b>HQTA Details:</b> {stop.get('hqta_details', 'N/A')}
-        """
-        folium.CircleMarker(
-            location=[stop.geometry.y, stop.geometry.x],
-            radius=8,
-            popup=folium.Popup(popup_html, max_width=300),
-            color='red',
-            fill=True,
-            fillColor='red',
-            fillOpacity=0.7
-        ).add_to(map_obj)
+    # Export to GeoJSON
+    gdf.to_file(str(filepath), driver='GeoJSON')
+    print(f"✓ Exported {len(gdf)} features to {filepath}")
 
 def main():
     city_name = "Berkeley"
@@ -587,37 +579,18 @@ def main():
 
     print(f"\n✓ Found {len(transit_stops)} transit stops in {city_name}")
 
-    # Create folium map
-    bounds = city_geojson.total_bounds
-    center_lat = (bounds[1] + bounds[3]) / 2
-    center_lon = (bounds[0] + bounds[2]) / 2
-
-    m = folium.Map(
-        location=[center_lat, center_lon],
-        zoom_start=13,
-        tiles="OpenStreetMap"
-    )
-
-    # Add map layers
-    add_city_boundary_to_folium(m, city_geojson)
-    add_transit_stops_to_folium(m, transit_stops)
-
-    # Add zoning to parcels
     tier1_parcels = add_zoning_to_parcels(tier1_parcels, zoning_districts)
-        
+
     # Filter for residential, commercial, and mixed use parcels
     tier1_parcels = tier1_parcels[(tier1_parcels["ZONECLASS"].str.startswith(("C-", "R-")) | (tier1_parcels["ZONECLASS"] == "ES-R") | (tier1_parcels["ZONECLASS"].isna()))]
-    
-    # Add potential capacity to parcels
-    tier1_parcels = add_potential_and_net_capacity(tier1_parcels)
-        
-    ####
-    # Why do these even exist, this is more data cleaning
-    no_potential_cap = tier1_parcels[(tier1_parcels["PotentialCapacity"] == 0) & (tier1_parcels["Units"] != 0)]
 
-    print(no_potential_cap[["LotSize", "PotentialCapacity", "Units"]])
-    ###
-    
+    tier1_parcels = add_potential_and_net_capacity(tier1_parcels)
+
+    tier1_parcels = filter_zero_lotsize_parcels(tier1_parcels)
+
+    tier1_parcels = filter_parcels_with_same_centroid(tier1_parcels)
+
+
     two_hundred_ft_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "200ft"]
     quarter_mile_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "quarter_mile"]
     half_mile_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "half_mile"]
@@ -654,12 +627,49 @@ def main():
         print(f"  - Total: {int(total_units)} existing / {int(net_increase_total_capacity)} potential units")
         print(f"  - Net new capacity: {int(net_increase_total_capacity)} units")
 
-    add_parcels_to_folium(m, two_hundred_ft_parcels, color="red", name="200ft Parcels (0-200ft)")
-    add_parcels_to_folium(m, quarter_mile_parcels, color="green", name="Quarter Mile Parcels (200ft-0.25mi)")
-    add_parcels_to_folium(m, half_mile_parcels, color="blue", name="Half Mile Parcels (0.25-0.5mi)")
+    # Export GeoJSON files for MapLibre
+    print("\n=== Exporting GeoJSON files ===")
 
-    m.save('city_boundary.html')
-    print("\n✓ Map saved to city_boundary.html")
+    # Get the directory where this script is located and construct path to public/data
+    script_dir = Path(__file__).parent
+    data_dir = script_dir / '..' / 'public' / 'data'
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    export_geojson(city_geojson, data_dir / 'city_boundary.geojson')
+    export_geojson(transit_stops, data_dir / 'transit_stops.geojson')
+    export_geojson(two_hundred_ft_parcels, data_dir / 'parcels_200ft.geojson')
+    export_geojson(quarter_mile_parcels, data_dir / 'parcels_quarter_mile.geojson')
+    export_geojson(half_mile_parcels, data_dir / 'parcels_half_mile.geojson')
+
+    # Calculate map bounds for MapLibre
+    bounds = city_geojson.total_bounds
+    center_lat = (bounds[1] + bounds[3]) / 2
+    center_lon = (bounds[0] + bounds[2]) / 2
+
+    # Create map metadata
+    map_metadata = {
+        'center': [center_lon, center_lat],
+        'bounds': [[bounds[0], bounds[1]], [bounds[2], bounds[3]]],
+        'city_name': city_name,
+        'stats': {
+            'transit_stops': len(transit_stops),
+            'parcels_200ft': len(two_hundred_ft_parcels),
+            'parcels_quarter_mile': len(quarter_mile_parcels),
+            'parcels_half_mile': len(half_mile_parcels),
+            'total_existing_units': int(total_units) if 'Units' in tier1_parcels.columns else 0,
+            'total_potential_capacity': int(total_capacity) if 'PotentialCapacity' in tier1_parcels.columns else 0,
+            'net_increase_capacity': int(net_increase_total_capacity) if 'NetIncreaseCapacity' in tier1_parcels.columns else 0
+        }
+    }
+
+    metadata_path = data_dir / 'map_metadata.json'
+    with open(metadata_path, 'w') as f:
+        json.dump(map_metadata, f, indent=2)
+
+    print(f"✓ Exported map metadata to {metadata_path}")
+    print("\n✓ All data exported to public/data/")
+    print("✓ Run the map by opening public/index.html in your browser")
+    print("✓ Or deploy the 'public' directory to Cloudflare Pages or any static host")
     
 if __name__ == "__main__":
     main()

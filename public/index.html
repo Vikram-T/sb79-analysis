@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Berkeley SB-79 Analysis - MapLibre</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+</head>
+<body>
+    <div id="map"></div>
+
+    <div id="info-panel">
+        <h2 id="city-name">Loading...</h2>
+        <div class="stat">
+            <strong>Transit Stops:</strong> <span id="stat-transit">-</span>
+        </div>
+        <div class="stat">
+            <strong>Existing Units:</strong> <span id="stat-existing">-</span>
+        </div>
+        <div class="stat">
+            <strong>Potential Capacity:</strong> <span id="stat-capacity">-</span>
+        </div>
+        <div class="stat">
+            <strong>Net New Capacity:</strong> <span id="stat-net">-</span>
+        </div>
+    </div>
+
+    <div class="layer-control">
+        <h3>Map Layers</h3>
+        <div class="layer-item">
+            <input type="checkbox" id="toggle-boundary" checked>
+            <label for="toggle-boundary">
+                <div class="layer-color" style="background: rgba(0, 0, 255, 0.2); border-color: darkblue;"></div>
+                City Boundary
+            </label>
+        </div>
+        <div class="layer-item">
+            <input type="checkbox" id="toggle-transit" checked>
+            <label for="toggle-transit">
+                <div class="layer-color" style="background: red;"></div>
+                Transit Stops
+            </label>
+        </div>
+        <div class="layer-item">
+            <input type="checkbox" id="toggle-200ft" checked>
+            <label for="toggle-200ft">
+                <div class="layer-color" style="background: rgba(255, 0, 0, 0.4);"></div>
+                200ft Zone
+            </label>
+        </div>
+        <div class="layer-item">
+            <input type="checkbox" id="toggle-quarter" checked>
+            <label for="toggle-quarter">
+                <div class="layer-color" style="background: rgba(0, 255, 0, 0.4);"></div>
+                Quarter Mile Zone
+            </label>
+        </div>
+        <div class="layer-item">
+            <input type="checkbox" id="toggle-half" checked>
+            <label for="toggle-half">
+                <div class="layer-color" style="background: rgba(0, 0, 255, 0.4);"></div>
+                Half Mile Zone
+            </label>
+        </div>
+    </div>
+
+    <div class="controls">
+        <h3>Visualization</h3>
+        <div class="control-item">
+            <label>Opacity: <span id="opacity-value">40</span>%</label>
+            <input type="range" id="opacity-slider" min="0" max="100" value="40">
+        </div>
+    </div>
+
+    <script src="map.js"></script>
+</body>
+</html>

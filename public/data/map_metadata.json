@@ -1,0 +1,26 @@
+{
+  "center": [
+    -122.301364814925,
+    37.870884846838294
+  ],
+  "bounds": [
+    [
+      -122.368531447696,
+      37.8359261642691
+    ],
+    [
+      -122.234198182154,
+      37.9058435294075
+    ]
+  ],
+  "city_name": "Berkeley",
+  "stats": {
+    "transit_stops": 12,
+    "parcels_200ft": 22,
+    "parcels_quarter_mile": 1604,
+    "parcels_half_mile": 4762,
+    "total_existing_units": 20805,
+    "total_potential_capacity": 101739,
+    "net_increase_capacity": 83430
+  }
+}
