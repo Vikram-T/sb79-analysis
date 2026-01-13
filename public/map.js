@@ -360,3 +360,51 @@ document.getElementById('opacity-slider').addEventListener('input', (e) => {
     map.setPaintProperty('parcels-half-fill', 'fill-opacity', opacity);
 });
 
+// Sidebar resize functionality
+const resizeHandle = document.querySelector('.resize-handle');
+const sidebar = document.querySelector('.sidebar');
+let isResizing = false;
+
+resizeHandle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isResizing = true;
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+
+    // Disable map dragging
+    if (map) {
+        map.dragPan.disable();
+    }
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+
+    e.preventDefault();
+    const newWidth = e.clientX;
+    const minWidth = 250;
+    const maxWidth = 800;
+
+    if (newWidth >= minWidth && newWidth <= maxWidth) {
+        sidebar.style.width = newWidth + 'px';
+        // Trigger map resize to adjust to new sidebar width
+        if (map) {
+            map.resize();
+        }
+    }
+});
+
+document.addEventListener('mouseup', () => {
+    if (isResizing) {
+        isResizing = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+
+        // Re-enable map dragging
+        if (map) {
+            map.dragPan.enable();
+        }
+    }
+});
+

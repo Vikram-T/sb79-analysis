@@ -9,69 +9,117 @@
     <link href="style.css" rel="stylesheet">
 </head>
 <body>
-    <div id="map"></div>
+    <div class="container">
+        <div class="sidebar">
+            <div class="resize-handle"></div>
+            <div id="info-panel">
+                <h2 id="city-name">Loading...</h2>
+                <div class="stat">
+                    <strong>Transit Stops:</strong> <span id="stat-transit">-</span>
+                </div>
 
-    <div id="info-panel">
-        <h2 id="city-name">Loading...</h2>
-        <div class="stat">
-            <strong>Transit Stops:</strong> <span id="stat-transit">-</span>
-        </div>
-        <div class="stat">
-            <strong>Existing Units:</strong> <span id="stat-existing">-</span>
-        </div>
-        <div class="stat">
-            <strong>Potential Capacity:</strong> <span id="stat-capacity">-</span>
-        </div>
-        <div class="stat">
-            <strong>Net New Capacity:</strong> <span id="stat-net">-</span>
-        </div>
-    </div>
+                <div class="stat-section">
+                    <h3>Capacity Summary</h3>
+                    <div class="stat">
+                        <strong>Existing Units:</strong> <span id="stat-existing">-</span>
+                    </div>
+                    <div class="stat">
+                        <strong>Potential Capacity:</strong> <span id="stat-capacity">-</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-formula">
+                        <p class="formula-description">Capacity Calculation:</p>
+                        <div class="formula-block">
+                            <span class="formula-label">parcel_max_capacity</span>
+                            <span class="formula-equals">=</span>
+                            <span class="formula-expression">parcel_area × density</span>
+                        </div>
 
-    <div class="layer-control">
-        <h3>Map Layers</h3>
-        <div class="layer-item">
-            <input type="checkbox" id="toggle-boundary" checked>
-            <label for="toggle-boundary">
-                <div class="layer-color" style="background: rgba(0, 0, 255, 0.2); border-color: darkblue;"></div>
-                City Boundary
-            </label>
-        </div>
-        <div class="layer-item">
-            <input type="checkbox" id="toggle-transit" checked>
-            <label for="toggle-transit">
-                <div class="layer-color" style="background: red;"></div>
-                Transit Stops
-            </label>
-        </div>
-        <div class="layer-item">
-            <input type="checkbox" id="toggle-200ft" checked>
-            <label for="toggle-200ft">
-                <div class="layer-color" style="background: rgba(255, 0, 0, 0.4);"></div>
-                200ft Zone
-            </label>
-        </div>
-        <div class="layer-item">
-            <input type="checkbox" id="toggle-quarter" checked>
-            <label for="toggle-quarter">
-                <div class="layer-color" style="background: rgba(0, 255, 0, 0.4);"></div>
-                Quarter Mile Zone
-            </label>
-        </div>
-        <div class="layer-item">
-            <input type="checkbox" id="toggle-half" checked>
-            <label for="toggle-half">
-                <div class="layer-color" style="background: rgba(0, 0, 255, 0.4);"></div>
-                Half Mile Zone
-            </label>
-        </div>
-    </div>
+                        <div class="density-table-container">
+                            <table class="density-table">
+                                <thead>
+                                    <tr>
+                                        <th>Distance</th>
+                                        <th>Density</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>0-200ft</td>
+                                        <td>160du/acre</td>
+                                    </tr>
+                                    <tr>
+                                        <td>200ft-0.25mi</td>
+                                        <td>120du/acre</td>
+                                    </tr>
+                                    <tr>
+                                        <td>0.25-0.5mi</td>
+                                        <td>100du/acre</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
 
-    <div class="controls">
-        <h3>Visualization</h3>
-        <div class="control-item">
-            <label>Opacity: <span id="opacity-value">40</span>%</label>
-            <input type="range" id="opacity-slider" min="0" max="100" value="40">
+                        <div class="formula-block">
+                            <span class="formula-label">parcel_net_capacity</span>
+                            <span class="formula-equals">=</span>
+                            <span class="formula-expression">max(0, parcel_max_capacity - existing_units)</span>
+                        </div>
+
+                        <p class="stat-highlight"> <strong>Net New Capacity:</strong> sum(parcel_net_capacity) = <span id="stat-net">-</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="layer-control">
+                <h3>Map Layers</h3>
+                <div class="layer-item">
+                    <input type="checkbox" id="toggle-boundary" checked>
+                    <label for="toggle-boundary">
+                        <div class="layer-color" style="background: rgba(0, 0, 255, 0.2); border-color: darkblue;"></div>
+                        City Boundary
+                    </label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="toggle-transit" checked>
+                    <label for="toggle-transit">
+                        <div class="layer-color" style="background: red;"></div>
+                        Transit Stops
+                    </label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="toggle-200ft" checked>
+                    <label for="toggle-200ft">
+                        <div class="layer-color" style="background: #ff8b8b;"></div>
+                        200ft Zone
+                    </label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="toggle-quarter" checked>
+                    <label for="toggle-quarter">
+                        <div class="layer-color" style="background: #7dbc7d;"></div>
+                        Quarter Mile Zone
+                    </label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="toggle-half" checked>
+                    <label for="toggle-half">
+                        <div class="layer-color" style="background: #0000ff;"></div>
+                        Half Mile Zone
+                    </label>
+                </div>
+            </div>
+
+            <div class="controls">
+                <h3>Visualization</h3>
+                <div class="control-item">
+                    <label>Opacity: <span id="opacity-value">40</span>%</label>
+                    <input type="range" id="opacity-slider" min="0" max="100" value="40">
+                </div>
+            </div>
         </div>
+
+        <div id="map"></div>
     </div>
 
     <script src="map.js"></script>

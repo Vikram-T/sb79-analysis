@@ -3,9 +3,7 @@ import pandas as pd
 import requests
 import urllib
 import json
-import os
 from pathlib import Path
-
 # California State Geoportal - City Boundaries
 from config import (
     BERKELEY_PARCEL_API, CITY_BOUNDARIES_URL, HIGH_QUALITY_TRANSIT_STOPS_URL, BERKELEY_ZONING_API,

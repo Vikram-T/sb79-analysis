@@ -13,7 +13,6 @@ For more details take a look at the legislation: https://leginfo.legislature.ca.
 - **Automated Data Collection**: Can pull real-time data from California State APIs (city boundaries, transit stops, parcels, zoning)
 - **SB-79 Tier Classification**: Categorizes parcels by distance from transit stops (200ft, quarter-mile, half-mile zones)
 - **Capacity Calculations**: Computes potential and net increase housing capacity per SB-79 regulations
-- **Interactive 3D Maps**: MapLibre GL JS visualization with toggleable layers, opacity controls, and height-scaled 3D view
 - **Local Caching**: GeoPackage storage for faster repeat runs without API calls
 - **Static Deployment**: Frontend deployable to any static hosting (Cloudflare Pages, Netlify, etc.)
 - **Currently Supports**: Berkeley, CA 
@@ -71,9 +70,13 @@ This will:
 4. Fetch all parcels within 0.5 miles of transit stops (in three zones: 200ft, quarter-mile, half-mile)
 5. Add zoning information to each parcel using spatial join
 6. Filter for residential, commercial, and mixed-use parcels only (ZONECLASS: R-*, C-*, ES-R)
-7. Calculate potential capacity based on SB-79 density limits and lot size
-8. Calculate net increase capacity: max(potential - existing units, 0) per SB-79 65912.161.(a)(1)
-9. Filter out parcels with zero lot size
+7. Filter out parcels with zero lot size
+8. Calculate potential capacity based on SB-79 density limits and lot size
+   - total_units_tier1 = (area_200ft * 160units/acre + area_quarter_mile * 120units/acre + area_half_mile * 100units/acre) 
+   - total_units_tier2 = (area_200ft * 140units/acre + area_quarter_mile * 100units/acre + area_half_mile * 80units/acre) 
+9. Calculate net increase capacity as per SB-79 65912.161.(a)(1)
+   - total_units_tier1 - existing_unit_capacity
+   - total_units_tier2 - existing_unit_capacity
 10. Remove duplicate parcels sharing the same centroid (keeps only parcels with BLDSQFTTAXABLE = 0)
 11. Save all data to `backend/berkeley_data.gpkg` for future use
 12. Export GeoJSON files to `public/data/` for the map
