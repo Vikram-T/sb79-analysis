@@ -2,6 +2,9 @@
 
 A geospatial analysis tool to visualize California Senate Bill 79 (SB-79) housing density impacts on parcels near high-quality transit stops. This project creates interactive maps showing which parcels would be upzoned under SB-79 and calculates potential housing capacity.
 
+
+To view latest pushed results check it out [here](https://vikram-t.github.io/sb79-analysis/public/)
+
 ## What is SB-79?
 
 SB-79 is California housing legislation that allows increased residential density near high-quality transit stops. 
@@ -91,8 +94,6 @@ uv run berkeley.py
 This loads data from the local GeoPackage, which is much faster.
 
 ### Viewing Results
-
-To view latest pushed results check it out [here](https://vikram-t.github.io/sb79-analysis/public/)
 
 The script will output capacity calculations:
 
