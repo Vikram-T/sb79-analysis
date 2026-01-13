@@ -92,7 +92,7 @@ This loads data from the local GeoPackage, which is much faster.
 
 ### Viewing Results
 
-To view latest pushed results check it out at: https://vikram-t.github.io/sb79-analysis/public/ 
+To view latest pushed results check it out [here](https://vikram-t.github.io/sb79-analysis/public/)
 
 The script will output capacity calculations:
 
