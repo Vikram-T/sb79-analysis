@@ -84,7 +84,7 @@ This will:
       parcel_capacity = max(parcel_area * density_value - existing_capacity)
       total_net_capacity += parcel_capacity
    ```
-   - To see the actual formula see `add_potential_and_net_capacity()` in berekely.py
+   - To see the actual formula see `add_potential_and_net_capacity()` in berkeley.py
 10. Remove duplicate parcels sharing the same centroid (keeps only parcels with BLDSQFTTAXABLE = 0)
 11. Save all data to `backend/berkeley_data.gpkg` for future use
 12. Export GeoJSON files to `public/data/` for the map
