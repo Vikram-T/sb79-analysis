@@ -372,7 +372,7 @@ def add_potential_and_net_capacity(parcels):
     """
     Calculate potential unit capacity for each parcel based on tier zone and lot size.
     Use this to then calculate the net capacity which is Potential - Existing.
-    This number cannot be negative though and will rather be 0
+    This number cannot be negative though and will default to 0
 
     Args:
         parcels: GeoDataFrame containing parcel data with 'tier1_zone' and 'LotSize' columns

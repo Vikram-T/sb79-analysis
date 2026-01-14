@@ -73,11 +73,18 @@ This will:
 6. Filter for residential, commercial, and mixed-use parcels only (ZONECLASS: R-*, C-*, ES-R)
 7. Filter out parcels with zero lot size
 8. Calculate potential capacity based on SB-79 density limits and lot size
-   - total_units_tier1 = (area_200ft * 160units/acre + area_quarter_mile * 120units/acre + area_half_mile * 100units/acre) 
-   - total_units_tier2 = (area_200ft * 140units/acre + area_quarter_mile * 100units/acre + area_half_mile * 80units/acre) 
-9. Calculate net increase capacity as per SB-79 65912.161.(a)(1)
-   - total_units_tier1 - existing_unit_capacity
-   - total_units_tier2 - existing_unit_capacity
+   ```python
+   density_value = {
+      DENSITY_200FT = 160 du/acre
+      DENSITY_QUARTER_MILE = 140 du/acre
+      DENSITY_HALF_MILE = 120 du/acre
+   }
+   total_net_capacity = 0
+   for parcel in all parcels:
+      parcel_capacity = max(parcel_area * density_value - existing_capacity)
+      total_net_capacity += parcel_capacity
+   ```
+   - To see the actual formula see `add_potential_and_net_capacity()` in berekely.py
 10. Remove duplicate parcels sharing the same centroid (keeps only parcels with BLDSQFTTAXABLE = 0)
 11. Save all data to `backend/berkeley_data.gpkg` for future use
 12. Export GeoJSON files to `public/data/` for the map
