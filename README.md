@@ -131,7 +131,20 @@ Edit `config.py` to customize:
 
 ## TODOs
 
+### Features
+- [ ] Add zones that can be deferred to the next RHNA cycle
+   - [ ] Very High Fire Hazard Severity Zones
+   - [ ] Areas vulnerable to 1 foot of sea level rise
+   - [ ] Sites with a locally designated historical resource (designated as of 1/1/2025)
+   - [ ] Sites and station areas meeting minimum local zoning standards:
+      - [ ] A site allowing at least 50% of the density & FAR allowed by SB 79
+      - [ ] A station area where at least 33% of sites allow at least half the density/FAR allowed by SB 79, and where the station area cumulatively allows for at least 75% of the aggregate density as SB 79
+      - [ ] A station area that is primarily “low resource” on the TCAC Opportunity Maps, and that cumulatively allows at least 40% of the aggregate density as SB 79
+      - [ ] Any site within a low resource area if the city cumulatively allows at least 50% of the aggregate transit-oriented density as SB 79
+
+
+### General Code Cleanup
 - [ ] Confirm the Net Capacity Calculation with someone 
 - [ ] Look into making  API request batching a generic so we don't repeat functionality get_zoning_districts and get_parcels_near_transit_stops 
 - [ ] Look into moving data saving out of this function so we always pull from local data and update with a different function 
-- [ ] Adding zones to be deferred to next cycle ()
+
