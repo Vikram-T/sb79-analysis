@@ -13,6 +13,11 @@ For more details take a look at the legislation: https://leginfo.legislature.ca.
 
 ## Features
 
+- **Automated Data Collection**: Can pull real-time data from California State APIs (city boundaries, transit stops, parcels, zoning)
+- **SB-79 Tier Classification**: Categorizes parcels by distance from transit stops (200ft, quarter-mile, half-mile zones)
+- **Capacity Calculations**: Computes potential and net increase housing capacity per SB-79 regulations
+- **Local Caching**: GeoPackage storage for faster repeat runs without API calls
+- **Static Deployment**: Frontend deployable to any static hosting (Cloudflare Pages, Netlify, etc.)
 - **Currently Supports**: Berkeley, CA 
 
 ## Project Structure
