@@ -79,6 +79,8 @@ def get_transit_stops(city_boundary):
             return None
 
         transit_stops = gpd.GeoDataFrame.from_features(response.json()['features'])
+        print(f"Filtering out stops with the same Stop ID {len(transit_stops)} -> {len(transit_stops['stop_id'].unique())} ")
+        transit_stops = transit_stops.drop_duplicates(subset='stop_id', keep='first')
         return transit_stops
     except Exception as e:
         print(f"Error fetching transit stops: {e}")
@@ -600,18 +602,6 @@ def main():
         units_half = half_mile_parcels['Units'].fillna(0).sum()
         total_units = tier1_parcels['Units'].fillna(0).sum()
 
-        cap_200ft = two_hundred_ft_parcels['PotentialCapacity'].sum()
-        cap_quarter = quarter_mile_parcels['PotentialCapacity'].sum()
-        cap_half = half_mile_parcels['PotentialCapacity'].sum()
-        total_capacity = tier1_parcels['PotentialCapacity'].sum()
-
-
-        print("\n✓ Capacity Summary by Tier Zone simple:")
-        print(f"  - 200ft zone: {int(units_200ft)} existing / {int(cap_200ft)} potential ({len(two_hundred_ft_parcels)} parcels)")
-        print(f"  - Quarter mile zone: {int(units_quarter)} existing / {int(cap_quarter)} potential ({len(quarter_mile_parcels)} parcels)")
-        print(f"  - Half mile zone: {int(units_half)} existing / {int(cap_half)} potential ({len(half_mile_parcels)} parcels)")
-        print(f"  - Total: {int(total_units)} existing / {int(total_capacity)} potential units")
-        print(f"  - Net new capacity: {int(total_capacity - total_units)} units")
 
         net_increase_cap_200ft = two_hundred_ft_parcels['NetIncreaseCapacity'].sum()
         net_increase_cap_quarter = quarter_mile_parcels['NetIncreaseCapacity'].sum()
@@ -654,14 +644,13 @@ def main():
             'parcels_quarter_mile': len(quarter_mile_parcels),
             'parcels_half_mile': len(half_mile_parcels),
             'total_existing_units': int(total_units) if 'Units' in tier1_parcels.columns else 0,
-            'total_potential_capacity': int(total_capacity) if 'PotentialCapacity' in tier1_parcels.columns else 0,
-            'net_increase_capacity': int(net_increase_total_capacity) if 'NetIncreaseCapacity' in tier1_parcels.columns else 0,
+            'net_increase_capacity': net_increase_total_capacity if 'NetIncreaseCapacity' in tier1_parcels.columns else 0,
             'existing_units_200ft': int(units_200ft) if 'Units' in tier1_parcels.columns else 0,
             'existing_units_quarter': int(units_quarter) if 'Units' in tier1_parcels.columns else 0,
             'existing_units_half': int(units_half) if 'Units' in tier1_parcels.columns else 0,
-            'net_increase_capacity_200ft': int(net_increase_cap_200ft) if 'NetIncreaseCapacity' in tier1_parcels.columns else 0,
-            'net_increase_capacity_quarter': int(net_increase_cap_quarter) if 'NetIncreaseCapacity' in tier1_parcels.columns else 0,
-            'net_increase_capacity_half': int(net_increase_cap_half) if 'NetIncreaseCapacity' in tier1_parcels.columns else 0
+            'net_increase_capacity_200ft': net_increase_cap_200ft if 'NetIncreaseCapacity' in tier1_parcels.columns else 0,
+            'net_increase_capacity_quarter': net_increase_cap_quarter if 'NetIncreaseCapacity' in tier1_parcels.columns else 0,
+            'net_increase_capacity_half': net_increase_cap_half if 'NetIncreaseCapacity' in tier1_parcels.columns else 0
         }
     }
 

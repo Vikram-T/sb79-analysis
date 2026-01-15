@@ -19,5 +19,5 @@ DENSITY_QUARTER_MILE = 120  # 200ft-0.25mi from transit
 DENSITY_HALF_MILE = 100  # 0.25-0.5mi from transit
 
 # Data storage settings
-USE_LOCAL_DATA = False  # Set to True to load from local GeoPackage instead of API
+USE_LOCAL_DATA = True  # Set to True to load from local GeoPackage instead of API
 DATA_DIR = "./data"  # Directory for storing local data snapshots

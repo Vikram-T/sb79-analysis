@@ -3,7 +3,7 @@
 A geospatial analysis tool to visualize California Senate Bill 79 (SB-79) housing density impacts on parcels near high-quality transit stops. This project creates interactive maps showing which parcels would be upzoned under SB-79 and calculates potential housing capacity.
 
 
-To view latest pushed results check it out [here](https://vikram-t.github.io/sb79-analysis/public/)
+# ✨[Live Demo](https://vikram-t.github.io/sb79-analysis/public/)✨
 
 ## What is SB-79?
 
@@ -13,11 +13,6 @@ For more details take a look at the legislation: https://leginfo.legislature.ca.
 
 ## Features
 
-- **Automated Data Collection**: Can pull real-time data from California State APIs (city boundaries, transit stops, parcels, zoning)
-- **SB-79 Tier Classification**: Categorizes parcels by distance from transit stops (200ft, quarter-mile, half-mile zones)
-- **Capacity Calculations**: Computes potential and net increase housing capacity per SB-79 regulations
-- **Local Caching**: GeoPackage storage for faster repeat runs without API calls
-- **Static Deployment**: Frontend deployable to any static hosting (Cloudflare Pages, Netlify, etc.)
 - **Currently Supports**: Berkeley, CA 
 
 ## Project Structure
@@ -105,11 +100,11 @@ The script will output capacity calculations:
 Example:
 ```bash
 ✓ Capacity Summary by Tier Zone w/ net increase calculations:
-  - 200ft zone: 452 existing / 3155 potential (24 parcels)
-  - Quarter mile zone: 6675 existing / 24843 potential (1696 parcels)
-  - Half mile zone: 22380 existing / 56648 potential (5432 parcels)
-  - Total: 29507 existing / 84647 potential units
-  - Net new capacity: 84647 units
+  - 200ft zone: 121 existing / 3155 potential (22 parcels)
+  - Quarter mile zone: 6012 existing / 24595 potential (1604 parcels)
+  - Half mile zone: 14672 existing / 55678 potential (4762 parcels)
+  - Total: 20805 existing / 83430 potential units
+  - Net new capacity: 83430 units
 ```
 
 ### Viewing the Interactive Map

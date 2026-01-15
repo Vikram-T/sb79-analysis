@@ -51,19 +51,90 @@ function updateInfoPanel(metadata) {
     document.getElementById('city-name').textContent = metadata.city_name + ' SB-79 Analysis';
     document.getElementById('stat-transit').textContent = metadata.stats.transit_stops.toLocaleString();
     document.getElementById('stat-existing').textContent = metadata.stats.total_existing_units.toLocaleString();
-    document.getElementById('stat-capacity').textContent = metadata.stats.total_potential_capacity.toLocaleString();
     document.getElementById('stat-net').textContent = metadata.stats.net_increase_capacity.toLocaleString();
 
     // Update zone-specific statistics
     document.getElementById('stat-200ft-parcels').textContent = metadata.stats.parcels_200ft.toLocaleString();
     document.getElementById('stat-200ft-existing').textContent = metadata.stats.existing_units_200ft.toLocaleString();
-    document.getElementById('stat-200ft-capacity').textContent = metadata.stats.net_increase_capacity_200ft.toLocaleString();
+    document.getElementById('stat-200ft-capacity').textContent = (Math.round(metadata.stats.net_increase_capacity_200ft*100)/100).toLocaleString();
     document.getElementById('stat-quarter-parcels').textContent = metadata.stats.parcels_quarter_mile.toLocaleString();
     document.getElementById('stat-quarter-existing').textContent = metadata.stats.existing_units_quarter.toLocaleString();
-    document.getElementById('stat-quarter-capacity').textContent = metadata.stats.net_increase_capacity_quarter.toLocaleString();
+    document.getElementById('stat-quarter-capacity').textContent = (Math.round(metadata.stats.net_increase_capacity_quarter*100)/100).toLocaleString();
     document.getElementById('stat-half-parcels').textContent = metadata.stats.parcels_half_mile.toLocaleString();
     document.getElementById('stat-half-existing').textContent = metadata.stats.existing_units_half.toLocaleString();
-    document.getElementById('stat-half-capacity').textContent = metadata.stats.net_increase_capacity_half.toLocaleString();
+    document.getElementById('stat-half-capacity').textContent = (Math.round(metadata.stats.net_increase_capacity_half*100)/100).toLocaleString();
+
+    // Load and populate transit stops list from GeoJSON
+    loadTransitStopsList();
+
+    // Setup toggle button for transit stops list
+    const toggleButton = document.getElementById('toggle-transit-list');
+    const transitStopsList = document.getElementById('transit-stops-list');
+
+    toggleButton.addEventListener('click', () => {
+        transitStopsList.classList.toggle('hidden');
+        toggleButton.textContent = transitStopsList.classList.contains('hidden') ? 'Show List' : 'Hide List';
+    });
+}
+
+function loadTransitStopsList() {
+    fetch('data/transit_stops.geojson')
+        .then(response => response.json())
+        .then(data => {
+            const transitStopsItems = document.getElementById('transit-stops-items');
+            transitStopsItems.innerHTML = '';
+
+            data.features.forEach(feature => {
+                const props = feature.properties;
+                const coords = feature.geometry.coordinates;
+
+                const li = document.createElement('li');
+                li.style.cursor = 'pointer';
+                li.innerHTML = `
+                    <div class="stop-id">Stop ID: ${props.stop_id || 'N/A'}</div>
+                    <div class="stop-agency">${props.agency_primary || 'N/A'}</div>
+                    <div class="stop-agency">${props.hqta_type || 'N/A'}</div>
+                `;
+
+                // Add click handler to zoom to and highlight the stop
+                li.addEventListener('click', () => {
+                    // Close any existing popups first
+                    if (currentPopup) {
+                        currentPopup.remove();
+                        currentPopup = null;
+                    }
+
+                    // Fly to the transit stop
+                    map.flyTo({
+                        center: coords,
+                        zoom: 17,
+                        duration: 1500
+                    });
+
+                    // Show popup for the stop
+                    let html = '<div><strong>Transit Stop</strong>';
+                    if (props.agency_primary) html += `<div class="popup-row"><strong>Agency:</strong> ${props.agency_primary}</div>`;
+                    if (props.hqta_type) html += `<div class="popup-row"><strong>Type:</strong> ${props.hqta_type}</div>`;
+                    if (props.stop_id) html += `<div class="popup-row"><strong>Stop ID:</strong> ${props.stop_id}</div>`;
+                    if (props.route_id) html += `<div class="popup-row"><strong>Route ID:</strong> ${props.route_id}</div>`;
+                    html += '</div>';
+
+                    currentPopup = new maplibregl.Popup()
+                        .setLngLat(coords)
+                        .setHTML(html)
+                        .addTo(map);
+
+                    currentPopup.on('close', () => {
+                        currentPopup = null;
+                    });
+                });
+
+                transitStopsItems.appendChild(li);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading transit stops:', error);
+        });
 }
 
 function loadDataSources() {
@@ -216,8 +287,8 @@ function createParcelPopupHTML(props, currentIndex, totalCount) {
     if (props.Units !== undefined) html += `<div class="popup-row"><strong>Existing Units:</strong> ${props.Units}</div>`;
 
     // Always display Potential Capacity and Net Increase, even if 0
-    const potentialCapacity = props.PotentialCapacity !== undefined ? Math.round(props.PotentialCapacity) : 0;
-    const netIncrease = props.NetIncreaseCapacity !== undefined ? Math.round(props.NetIncreaseCapacity) : 0;
+    const potentialCapacity = props.PotentialCapacity !== undefined ? Math.round(props.PotentialCapacity*10)/10 : 0;
+    const netIncrease = props.NetIncreaseCapacity !== undefined ? Math.round(props.NetIncreaseCapacity*10)/10 : 0;
     html += `<div class="popup-row"><strong>Potential Capacity:</strong> ${potentialCapacity}</div>`;
     html += `<div class="popup-row"><strong>Net Increase:</strong> ${netIncrease}</div>`;
 
@@ -412,6 +483,21 @@ document.addEventListener('mouseup', () => {
         if (map) {
             map.dragPan.enable();
         }
+    }
+});
+
+// Mobile menu toggle
+const menuToggle = document.getElementById('menu-toggle');
+const sidebarElement = document.querySelector('.sidebar');
+
+menuToggle.addEventListener('click', () => {
+    sidebarElement.classList.toggle('open');
+});
+
+// Close sidebar when clicking on map area on mobile
+document.getElementById('map').addEventListener('click', () => {
+    if (window.innerWidth <= 768 && sidebarElement.classList.contains('open')) {
+        sidebarElement.classList.remove('open');
     }
 });
 

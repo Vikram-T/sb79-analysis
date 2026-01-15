@@ -9,6 +9,7 @@
     <link href="style.css" rel="stylesheet">
 </head>
 <body>
+    <button class="menu-toggle" id="menu-toggle">☰</button>
     <div class="container">
         <div class="sidebar">
             <div class="resize-handle"></div>
@@ -16,15 +17,16 @@
                 <h2 id="city-name">Loading...</h2>
                 <div class="stat">
                     <strong>Transit Stops:</strong> <span id="stat-transit">-</span>
+                    <button id="toggle-transit-list" class="toggle-button">Show List</button>
+                </div>
+                <div id="transit-stops-list" class="transit-stops-list hidden">
+                    <ul id="transit-stops-items"></ul>
                 </div>
 
                 <div class="stat-section">
                     <h3>Capacity Summary</h3>
                     <div class="stat">
                         <strong>Existing Units:</strong> <span id="stat-existing">-</span>
-                    </div>
-                    <div class="stat">
-                        <strong>Potential Capacity:</strong> <span id="stat-capacity">-</span>
                     </div>
                     <div class="stat-divider"></div>
                     <div class="stat-formula">
@@ -39,8 +41,8 @@
                             <table class="density-table">
                                 <thead>
                                     <tr>
-                                        <th>Distance</th>
-                                        <th>Density</th>
+                                        <th>Distance from Transit Stop</th>
+                                        <th>Density (dwelling units / acre)</th>
                                     </tr>
                                 </thead>
                                 <tbody>
