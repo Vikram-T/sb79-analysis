@@ -213,7 +213,7 @@ function addLayers() {
         source: 'parcels',
         filter: ['==', ['get', 'tier1_zone'], 'quarter_mile'],
         paint: {
-            'fill-color': 'green',
+            'fill-color': 'purple',
             'fill-opacity': 0.4
         }
     });
@@ -224,7 +224,7 @@ function addLayers() {
         source: 'parcels',
         filter: ['==', ['get', 'tier1_zone'], 'quarter_mile'],
         paint: {
-            'line-color': 'green',
+            'line-color': 'purple',
             'line-width': 1
         }
     });
