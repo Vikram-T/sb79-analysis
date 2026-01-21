@@ -17,15 +17,15 @@
   "stats": {
     "transit_stops": 6,
     "parcels_200ft": 22,
-    "parcels_quarter_mile": 1604,
-    "parcels_half_mile": 4762,
+    "parcels_quarter_mile": 1601,
+    "parcels_half_mile": 4758,
     "total_existing_units": 20805,
-    "net_increase_capacity": 83430.1836547291,
+    "net_increase_capacity": 83318.62672176308,
     "existing_units_200ft": 121,
     "existing_units_quarter": 6012,
     "existing_units_half": 14672,
     "net_increase_capacity_200ft": 3155.971533516989,
-    "net_increase_capacity_quarter": 24595.98347107438,
-    "net_increase_capacity_half": 55678.22865013774
+    "net_increase_capacity_quarter": 24547.68870523416,
+    "net_increase_capacity_half": 55614.966483011936
   }
 }

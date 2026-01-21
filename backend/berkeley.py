@@ -582,7 +582,7 @@ def main():
     tier1_parcels = add_zoning_to_parcels(tier1_parcels, zoning_districts)
 
     # Filter for residential, commercial, and mixed use parcels
-    tier1_parcels = tier1_parcels[(tier1_parcels["ZONECLASS"].str.startswith(("C-", "R-")) | (tier1_parcels["ZONECLASS"] == "ES-R") | (tier1_parcels["ZONECLASS"].isna()))]
+    tier1_parcels = tier1_parcels[(tier1_parcels["ZONECLASS"].str.startswith(("C-", "R-")) & (tier1_parcels["ZONECLASS"].notna()))]
 
     tier1_parcels = add_potential_and_net_capacity(tier1_parcels)
 
