@@ -7,19 +7,22 @@ from pathlib import Path
 # California State Geoportal - City Boundaries
 from config import (
     BERKELEY_PARCEL_API, CITY_BOUNDARIES_URL, HIGH_QUALITY_TRANSIT_STOPS_URL, BERKELEY_ZONING_API,
-    DENSITY_200FT, DENSITY_QUARTER_MILE, DENSITY_HALF_MILE, USE_LOCAL_DATA
+    BERKELEY_SOUTHSIDE_PLAN_API, DENSITY_200FT, DENSITY_QUARTER_MILE, DENSITY_HALF_MILE, USE_LOCAL_DATA
 )
 from data_store import (
     save_layer, load_layer,
     LAYER_CITY_BOUNDARY, LAYER_TRANSIT_STOPS, LAYER_ZONING, LAYER_PARCELS
 )
 
-def get_city_boundary(city_name):
+def get_city_boundary(city_name, buffer_miles=0):
     """
     Fetch city boundary from California State Geoportal.
 
     Args:
         city_name: Name of the city to fetch boundary for
+        buffer_miles: Optional distance in miles to expand the boundary (default: 0, no expansion).
+                      Useful for capturing transit stops outside the city whose radius overlaps
+                      the city boundary. Typical use case: 0.6 miles.
 
     Returns:
         GeoDataFrame containing the city boundary, or None if error
@@ -38,6 +41,23 @@ def get_city_boundary(city_name):
         if len(city_geojson) == 0:
             print(f"No boundary found for {city_name}")
             return None
+
+        # Apply buffer if specified
+        if buffer_miles > 0:
+            # Convert miles to meters (1 mile = 1609.344 meters)
+            buffer_meters = buffer_miles * 1609.344
+
+            # Project to UTM Zone 10N (EPSG:32610) for accurate distance calculations
+            # This CRS is appropriate for the San Francisco Bay Area
+            city_projected = city_geojson.to_crs(epsg=32610)
+
+            # Apply buffer in meters
+            city_projected['geometry'] = city_projected.geometry.buffer(buffer_meters)
+
+            # Project back to WGS84 (EPSG:4326)
+            city_geojson = city_projected.to_crs(epsg=4326)
+
+            print(f"Applied {buffer_miles}-mile buffer to {city_name} boundary")
 
         return city_geojson
     except Exception as e:
@@ -370,6 +390,108 @@ def add_zoning_to_parcels(parcels, zoning_districts):
 
     return joined
 
+def get_southside_plan_boundary():
+    """
+    Fetch the Southside Plan boundary from Berkeley's GIS.
+
+    The Southside Plan area has different zoning rules for R-3 parcels:
+    - Inside Southside: 45ft height limit, 100% lot coverage, 60 du/acre min density
+    - Outside Southside: 35ft height limit, 30-45% lot coverage, no min density
+
+    Returns:
+        GeoDataFrame containing the Southside Plan boundary polygon, or None if error
+    """
+    params = {
+        'where': '1=1',
+        'outFields': '*',
+        'outSR': '4326',
+        'f': 'geojson'
+    }
+
+    try:
+        response = requests.post(BERKELEY_SOUTHSIDE_PLAN_API, data=params)
+
+        if response.status_code != 200:
+            print(f"Error fetching Southside Plan boundary: HTTP {response.status_code}")
+            return None
+
+        response_json = response.json()
+
+        if 'error' in response_json:
+            print(f"Error fetching Southside Plan boundary: {response_json['error']}")
+            return None
+
+        if 'features' not in response_json or len(response_json['features']) == 0:
+            print("No Southside Plan boundary found")
+            return None
+
+        boundary = gpd.GeoDataFrame.from_features(response_json['features'])
+        boundary = boundary.set_crs(epsg=4326)
+        print("✓ Fetched Southside Plan boundary")
+        return boundary
+
+    except Exception as e:
+        print(f"Error fetching Southside Plan boundary: {e}")
+        return None
+
+def reclassify_r3_in_southside(parcels, southside_boundary):
+    """
+    Reclassify R-3 parcels inside the Southside Plan area to R-3S.
+
+    R-3 parcels have different development standards inside vs outside
+    the Southside Plan area:
+    - R-3S (Southside): 45ft height, 100% lot coverage, 60 du/acre min density
+    - R-3 (elsewhere): 35ft height, 30-45% lot coverage, no min density
+
+    Args:
+        parcels: GeoDataFrame containing parcel data with ZONECLASS column
+        southside_boundary: GeoDataFrame containing the Southside Plan boundary
+
+    Returns:
+        GeoDataFrame with ZONECLASS updated to R-3S for R-3 parcels in Southside Plan
+    """
+    if parcels is None or southside_boundary is None:
+        return parcels
+
+    parcels = parcels.copy()
+
+    # Find R-3 parcels (but not R-3H - hillside overlay has its own rules)
+    r3_mask = parcels['ZONECLASS'] == 'R-3'
+
+    if r3_mask.sum() == 0:
+        print("✓ No R-3 parcels found - Southside reclassification not needed")
+        return parcels
+
+    # Ensure both have CRS set
+    if parcels.crs is None:
+        parcels = parcels.set_crs(epsg=4326)
+    if southside_boundary.crs is None:
+        southside_boundary = southside_boundary.set_crs(epsg=4326)
+
+    # Project to UTM Zone 10N for accurate spatial operations
+    parcels_projected = parcels.to_crs(epsg=32610)
+    boundary_projected = southside_boundary.to_crs(epsg=32610)
+
+    # Combine all boundary polygons into one (in case there are multiple)
+    combined_boundary = boundary_projected.union_all()
+
+    # Check which R-3 parcel centroids are inside the Southside Plan boundary
+    r3_indices = parcels[r3_mask].index
+    reclassified_count = 0
+
+    for idx in r3_indices:
+        centroid = parcels_projected.loc[idx].geometry.centroid
+        if centroid.within(combined_boundary):
+            parcels.loc[idx, 'ZONECLASS'] = 'R-3S'
+            parcels.loc[idx, 'ZONEDESC'] = 'Multiple Family Residential (Southside Plan)'
+            reclassified_count += 1
+
+    remaining_r3 = (parcels['ZONECLASS'] == 'R-3').sum()
+    print(f"✓ Reclassified {reclassified_count} R-3 parcels to R-3S (Southside Plan)")
+    print(f"  {remaining_r3} R-3 parcels remain outside Southside Plan")
+
+    return parcels
+
 def add_potential_and_net_capacity(parcels):
     """
     Calculate potential unit capacity for each parcel based on tier zone and lot size.
@@ -554,7 +676,7 @@ def main():
     else:
         print("\n=== Fetching data from APIs ===")
         # Get city boundary
-        city_geojson = get_city_boundary(city_name)
+        city_geojson = get_city_boundary(city_name,0.6)
         if city_geojson is None:
             return
         save_layer(city_geojson, city_name, LAYER_CITY_BOUNDARY, CITY_BOUNDARIES_URL)
@@ -580,6 +702,11 @@ def main():
     print(f"\n✓ Found {len(transit_stops)} transit stops in {city_name}")
 
     tier1_parcels = add_zoning_to_parcels(tier1_parcels, zoning_districts)
+
+    # Reclassify R-3 parcels in Southside Plan area to R-3S
+    southside_boundary = get_southside_plan_boundary()
+    if southside_boundary is not None:
+        tier1_parcels = reclassify_r3_in_southside(tier1_parcels, southside_boundary)
 
     # Filter for residential, commercial, and mixed use parcels
     tier1_parcels = tier1_parcels[(tier1_parcels["ZONECLASS"].str.startswith(("C-", "R-")) & (tier1_parcels["ZONECLASS"].notna()))]

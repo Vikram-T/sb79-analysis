@@ -8,6 +8,7 @@ HIGH_QUALITY_TRANSIT_STOPS_URL = "https://caltrans-gis.dot.ca.gov/arcgis/rest/se
 
 BERKELEY_PARCEL_API = "https://gis.cityofberkeley.info/arcgis3/rest/services/Public/GISPortal/MapServer/1/query"
 BERKELEY_ZONING_API = "https://gis.cityofberkeley.info/arcgis3/rest/services/Public/Portal_Planning/MapServer/7/query"
+BERKELEY_SOUTHSIDE_PLAN_API = "https://gis.cityofberkeley.info/arcgis3/rest/services/Public/Portal_Planning/MapServer/13/query"
 
 # SB-79 parameters
 TIER1_BUFFER_MILES = 0.5
