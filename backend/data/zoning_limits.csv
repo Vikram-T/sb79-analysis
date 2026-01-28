@@ -1,0 +1,36 @@
+zoneclass ,zone_desc                               ,height_ft ,height_stories ,far_max ,lot_coverage_pct ,min_density_du_acre ,usable_open_space_sqft ,notes
+R-1       ,Residential Multi-Unit 1                ,       35 ,             3 ,        ,60               ,                    ,150 per 1000 sqft GFA  ,Pitched roof allows 38ft max
+R-1H      ,Residential Multi-Unit 1 (Hillside)     ,       35 ,             3 ,        ,40               ,                    ,400 per DU             ,Average 28ft; hillside overlay
+R-2       ,Residential Multi-Unit 2                ,       35 ,             3 ,        ,60               ,                    ,150 per 1000 sqft GFA  ,Pitched roof allows 38ft max
+R-2H      ,Residential Multi-Unit 2 (Hillside)     ,       35 ,             3 ,        ,35-45            ,                    ,400 per DU             ,Lot coverage varies by stories
+R-2A      ,Residential Multi-Unit 2A               ,       35 ,             3 ,        ,60               ,                    ,150 per 1000 sqft GFA  ,
+R-2AH     ,Residential Multi-Unit 2A (Hillside)    ,       35 ,             3 ,        ,35-45            ,                    ,400 per DU             ,Lot coverage varies by stories
+R-3       ,Multiple-Family Residential             ,       35 ,             3 ,        ,30-45            ,                    ,200 per DU             ,Outside Southside; coverage varies by stories
+R-3S      ,Multiple-Family Residential (Southside) ,       45 ,             4 ,3.0     ,100              ,                 60 ,150 per 1000 sqft GFA  ,Within Southside Plan
+R-3H      ,Multiple-Family Residential (Hillside)  ,       35 ,             3 ,        ,30-45            ,                    ,200 per DU             ,Hillside overlay
+R-4       ,Multi-Family Residential                ,       35 ,             3 ,        ,35-45            ,                    ,200 per DU             ,UP allows 65ft/6 stories; coverage varies
+R-5       ,High-Density Residential                ,       40 ,             4 ,        ,40-55            ,                    ,100 per DU             ,UP allows 65ft/6 stories
+R-S       ,Residential Southside                   ,       55 ,             5 ,4.0     ,100              ,                100 ,50 per 1000 sqft GFA   ,Southside Plan
+R-SMU     ,Residential Southside Mixed Use         ,       85 ,             8 ,7.0     ,100              ,                150 ,40 per 1000 sqft GFA   ,Southside Plan
+R-BMU     ,Residential BART Mixed Use              ,       80 ,             7 ,4.2     ,100              ,                 75 ,40 per DU              ,BART station area
+ES-R      ,Environmental Safety-Residential        ,       35 ,             2 ,0.3     ,30               ,                    ,400 per DU             ,Special fire zone; very restricted
+C-C       ,Community Commercial                    ,       40 ,             3 ,3.0     ,100              ,                    ,200 per DU             ,Mixed use; res-only 35ft
+C-U       ,University Avenue Commercial            ,       48 ,             4 ,2.2-3.0 ,100              ,                    ,200 per DU             ,FAR varies by location
+C-N       ,Neighborhood Commercial                 ,       35 ,             3 ,3.0     ,100              ,                    ,200 per DU             ,
+C-E       ,Elmwood Commercial                      ,       28 ,             2 ,0.8-1.0 ,100              ,                    ,200 per DU             ,Very restricted FAR
+C-NS      ,North Shattuck Commercial               ,       35 ,             3 ,1.0     ,100              ,                    ,40 per DU              ,Low FAR for non-res
+C-SA      ,San Pablo Avenue Commercial             ,       60 ,             5 ,4.0     ,100              ,                    ,40-200 per DU          ,Subarea One; others 36ft
+C-T       ,Telegraph Avenue Commercial             ,       85 ,             7 ,8.0     ,100              ,                200 ,40 per 1000 sqft GFA   ,Southside Plan; high density
+C-SO      ,Solano Avenue Commercial                ,       28 ,             2 ,2.0     ,100              ,                    ,40-200 per DU          ,
+C-W       ,West Berkeley Commercial                ,       40 ,             3 ,3.0     ,100              ,                    ,40 per DU              ,Mixed use 50ft/4 stories
+C-DMU     ,Downtown Mixed Use Core                 ,       75 ,             6 ,        ,100              ,                    ,varies                 ,UP allows 120-180ft
+C-DMU-OC  ,Downtown Mixed Use Outer Core           ,       60 ,             5 ,        ,100              ,                    ,varies                 ,
+C-DMU-CO  ,Downtown Mixed Use Corridor             ,       60 ,             5 ,        ,100              ,                    ,varies                 ,
+C-DMU-BU  ,Downtown Mixed Use Buffer               ,       60 ,             5 ,        ,100              ,                    ,varies                 ,
+C-AC-1    ,Adeline Corridor Subarea 1              ,       45 ,             4 ,2.5     ,100              ,                120 ,                       ,South Shattuck
+C-AC-2    ,Adeline Corridor Subarea 2              ,       65 ,             6 ,4.0     ,100              ,                210 ,                       ,South Shattuck
+C-AC-3    ,Adeline Corridor Subarea 3              ,       75 ,             7 ,5.0     ,100              ,                250 ,                       ,South Shattuck
+C-AC-4    ,Adeline Corridor Subarea 4              ,       85 ,             8 ,5.5     ,100              ,                300 ,                       ,South Shattuck
+C-AC-5    ,Adeline Corridor Subarea 5              ,       90 ,             8 ,5.5     ,100              ,                300 ,                       ,South Shattuck
+C-AC-6    ,Adeline Corridor Subarea 6              ,       45 ,             4 ,2.5     ,100              ,                    ,                       ,North Adeline
+C-AC-7    ,Adeline Corridor Subarea 7              ,       45 ,             4 ,2.5     ,100              ,                    ,                       ,South Adeline

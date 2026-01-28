@@ -1,0 +1,7 @@
+tier  ,distance     ,height_ft_min ,density_du_acre_min ,far_min ,notes
+tier1 ,adjacent     ,           95 ,                160 ,    4.5 ,Within 200ft of Tier 1 stop (+20ft/+40du/+1.0 FAR adjacency bonus)
+tier1 ,quarter_mile ,           75 ,                120 ,    3.5 ,Within 0.25mi of Tier 1 stop (Heavy Rail/BART)
+tier1 ,half_mile    ,           65 ,                100 ,    3.0 ,0.25-0.5mi from Tier 1 stop
+tier2 ,adjacent     ,           85 ,                140 ,    4.0 ,Within 200ft of Tier 2 stop (+20ft/+40du/+1.0 FAR adjacency bonus)
+tier2 ,quarter_mile ,           65 ,                100 ,    3.0 ,Within 0.25mi of Tier 2 stop (Light Rail/Bus)
+tier2 ,half_mile    ,           55 ,                 80 ,    2.5 ,0.25-0.5mi from Tier 2 stop

@@ -556,6 +556,78 @@ def add_potential_and_net_capacity(parcels):
 
     return parcels
 
+
+def load_zoning_limits():
+    """
+    Load Berkeley zoning height limits from CSV.
+
+    Returns:
+        dict mapping ZONECLASS to height_ft
+    """
+    csv_path = Path(__file__).parent / 'data' / 'zoning_limits.csv'
+    df = pd.read_csv(csv_path, skipinitialspace=True)
+    # Strip whitespace from column names and values
+    df.columns = df.columns.str.strip()
+    df['zoneclass'] = df['zoneclass'].str.strip()
+    return dict(zip(df['zoneclass'], df['height_ft']))
+
+
+def load_sb79_limits():
+    """
+    Load SB-79 minimum height limits from CSV.
+
+    Returns:
+        dict mapping (tier, distance) to height_ft_min
+    """
+    csv_path = Path(__file__).parent / 'data' / 'sb79_limits.csv'
+    df = pd.read_csv(csv_path, skipinitialspace=True)
+    df.columns = df.columns.str.strip()
+    df['tier'] = df['tier'].str.strip()
+    df['distance'] = df['distance'].str.strip()
+    # Map distance names to tier1_zone values
+    distance_map = {
+        'adjacent': '200ft',
+        'quarter_mile': 'quarter_mile',
+        'half_mile': 'half_mile'
+    }
+    result = {}
+    for _, row in df.iterrows():
+        zone_key = distance_map.get(row['distance'])
+        if zone_key and row['tier'] == 'tier1':
+            result[zone_key] = row['height_ft_min']
+    return result
+
+
+def add_height_limits(parcels):
+    """
+    Add current zoning height limit and SB-79 minimum height to parcels.
+
+    Args:
+        parcels: GeoDataFrame with ZONECLASS and tier1_zone columns
+
+    Returns:
+        GeoDataFrame with CurrentHeightLimit and SB79HeightLimit columns added
+    """
+    if parcels is None or len(parcels) == 0:
+        return parcels
+
+    zoning_limits = load_zoning_limits()
+    sb79_limits = load_sb79_limits()
+
+    # Add current height limit based on zoning
+    parcels['CurrentHeightLimit'] = parcels['ZONECLASS'].map(zoning_limits)
+
+    # Add SB-79 minimum height based on tier zone
+    parcels['SB79HeightLimit'] = parcels['tier1_zone'].map(sb79_limits)
+
+    # Report stats
+    has_current = parcels['CurrentHeightLimit'].notna().sum()
+    has_sb79 = parcels['SB79HeightLimit'].notna().sum()
+    print(f"\n✓ Added height limits: {has_current}/{len(parcels)} have current zoning height, {has_sb79}/{len(parcels)} have SB-79 height")
+
+    return parcels
+
+
 def filter_zero_lotsize_parcels(parcels):
     """
     Filter out parcels with LotSize = 0.
@@ -728,6 +800,8 @@ def main():
     tier1_parcels = tier1_parcels[(tier1_parcels["ZONECLASS"].str.startswith(("C-", "R-")) & (tier1_parcels["ZONECLASS"].notna()))]
 
     tier1_parcels = add_potential_and_net_capacity(tier1_parcels)
+
+    tier1_parcels = add_height_limits(tier1_parcels)
 
     tier1_parcels = filter_zero_lotsize_parcels(tier1_parcels)
 
