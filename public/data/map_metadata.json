@@ -16,16 +16,16 @@
   "city_name": "Berkeley",
   "stats": {
     "transit_stops": 8,
-    "parcels_200ft": 0,
-    "parcels_quarter_mile": 1623,
+    "parcels_200ft": 22,
+    "parcels_quarter_mile": 1601,
     "parcels_half_mile": 4821,
     "total_existing_units": 20924,
-    "net_increase_capacity": 83133.78925619835,
-    "existing_units_200ft": 0,
-    "existing_units_quarter": 6133,
+    "net_increase_capacity": 83926.5321395776,
+    "existing_units_200ft": 121,
+    "existing_units_quarter": 6012,
     "existing_units_half": 14791,
-    "net_increase_capacity_200ft": 0.0,
-    "net_increase_capacity_quarter": 26910.9173553719,
+    "net_increase_capacity_200ft": 3155.971533516988,
+    "net_increase_capacity_quarter": 24547.68870523416,
     "net_increase_capacity_half": 56222.871900826445
   }
 }

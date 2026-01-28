@@ -106,32 +106,37 @@ def get_transit_stops(city_boundary):
         print(f"Error fetching transit stops: {e}")
         return None
 
-def get_parcels_near_transit_stops(parcel_api, transit_stops, distance_miles, city_name, zone_tag=None):
+def get_parcels_near_transit_stop(parcel_api, stop_geometry, distance_miles, city_name):
     """
-    Fetch all parcels within a specified distance from transit stops using multipoint geometry.
+    Fetch all parcels within a specified distance from a single transit stop.
+
+    NOTE: We query each stop individually rather than using multipoint geometry due to an
+    ArcGIS REST API pagination bug. When using multipoint geometry with pagination parameters
+    (resultOffset/resultRecordCount), if ANY point in the multipoint has zero results within
+    the buffer distance, the entire query returns 0 results. This was causing issues with
+    transit stops outside the city boundary (e.g., Rockridge BART) that have no Berkeley
+    parcels within 200ft or 0.25mi. By querying each stop individually, pagination works
+    correctly and we get all parcels.
 
     Args:
         parcel_api: URL of the parcel API endpoint
-        transit_stops: GeoDataFrame containing transit stop data
-        distance_miles: Distance in miles to search around transit stops
+        stop_geometry: Point geometry of the transit stop
+        distance_miles: Distance in miles to search around transit stop
         city_name: Name of the city to filter parcels by (e.g., 'Berkeley')
-        zone_tag: Optional string to tag parcels with (e.g., 'quarter_mile', 'half_mile')
 
     Returns:
-        GeoDataFrame containing unique parcels within distance of any transit stop, or None if error
+        List of parcel features (GeoJSON), or empty list if none found
     """
-    # Create multipoint geometry from all transit stops
-    points = [[stop.geometry.x, stop.geometry.y] for _, stop in transit_stops.iterrows()]
-
     esri_geometry = {
-        "points": points,
+        "x": stop_geometry.x,
+        "y": stop_geometry.y,
         "spatialReference": {"wkid": 4326}
     }
 
     parcel_params = {
         'where': f"SitusCity='{city_name}'",
         'geometry': json.dumps(esri_geometry),
-        'geometryType': 'esriGeometryMultipoint',
+        'geometryType': 'esriGeometryPoint',
         'distance': distance_miles,
         'units': 'esriSRUnit_StatuteMile',
         'inSR': '4326',
@@ -146,7 +151,6 @@ def get_parcels_near_transit_stops(parcel_api, transit_stops, distance_miles, ci
     remaining_records = True
 
     try:
-        # API Only returns results in batches so we need to loop until we get all items
         while remaining_records:
             parcel_params["resultOffset"] = offset
             parcel_params["resultRecordCount"] = batch_size
@@ -154,48 +158,35 @@ def get_parcels_near_transit_stops(parcel_api, transit_stops, distance_miles, ci
             response = requests.post(parcel_api, data=parcel_params)
 
             if response.status_code != 200:
-                print(f"Error fetching parcels: HTTP {response.status_code}")
-                return None
+                return []
 
             response_json = response.json()
 
             if 'error' in response_json:
-                print(f"Error fetching parcels: {response_json['error']}")
-                return None
+                return []
 
             if 'features' not in response_json or len(response_json['features']) == 0:
-                if len(parcels_list) == 0:
-                    print(f"No parcels found within {distance_miles} miles of any transit stop")
-                    return gpd.GeoDataFrame()
-                break  # No more results, exit loop with what we have
+                break
 
             parcel_json = response_json['features']
             parcels_list.extend(parcel_json)
-            
-            # determine next batch
+
             remaining_records = response_json.get("properties", {}).get("exceededTransferLimit", False)
-            print(f"   Fetched batch at offset {offset}: {len(parcel_json)} parcels (total: {len(parcels_list)})")
             offset += batch_size
-        
-        parcels = gpd.GeoDataFrame.from_features(parcels_list)
-        # Remove duplicates based on APN (Assessor's Parcel Number)
-        # Keep first occurrence to ensure we have one record per physical parcel
-        parcels = parcels.drop_duplicates(subset=['APN'], keep='first')
 
-        # Add zone tag if provided
-        if zone_tag:
-            parcels['tier1_zone'] = zone_tag
-
-        print(f"✓ Found {len(parcels)} unique parcels within {distance_miles} miles of transit stops")
-        return parcels
+        return parcels_list
 
     except Exception as e:
-        print(f"Error fetching parcels: {e}")
-        return None
+        print(f"Error fetching parcels for stop: {e}")
+        return []
+
 
 def get_tier1_parcels(parcel_api, transit_stops, city_name):
     """
-    Get all Tier 1 SB-79 parcels with zone tagging (quarter_mile or half_mile).
+    Get all Tier 1 SB-79 parcels with zone tagging (200ft, quarter_mile, half_mile).
+
+    Queries each transit stop individually to avoid ArcGIS pagination bug with multipoint.
+    Uses API's buffer on parcel polygons for accurate zone assignment.
 
     Args:
         parcel_api: URL of the parcel API endpoint
@@ -203,48 +194,77 @@ def get_tier1_parcels(parcel_api, transit_stops, city_name):
         city_name: Name of the city to filter parcels by (e.g., 'Berkeley')
 
     Returns:
-        GeoDataFrame with all parcels tagged with their tier1_zone, or None if error
+        GeoDataFrame with all parcels tagged with their tier1_zone, or empty GeoDataFrame if none
     """
-    # Convert 200ft to miles: 200 / 5280 ≈ 0.0379
-    two_hundred_ft_miles = 200 / 5280
+    # Distance thresholds in miles
+    TWO_HUNDRED_FT_MILES = 200 / 5280  # ~0.0379
+    QUARTER_MILE = 0.25
+    HALF_MILE = 0.5
 
-    # Get parcels for each zone (returns empty GeoDataFrame if none found)
-    half_mile_parcels = get_parcels_near_transit_stops(
-        parcel_api, transit_stops, 0.5, city_name, zone_tag='half_mile'
-    )
-    quarter_mile_parcels = get_parcels_near_transit_stops(
-        parcel_api, transit_stops, 0.25, city_name, zone_tag='quarter_mile'
-    )
-    two_hundred_ft_parcels = get_parcels_near_transit_stops(
-        parcel_api, transit_stops, two_hundred_ft_miles, city_name, zone_tag='200ft'
-    )
+    # Define zones from innermost to outermost
+    zones = [
+        ('200ft', TWO_HUNDRED_FT_MILES),
+        ('quarter_mile', QUARTER_MILE),
+        ('half_mile', HALF_MILE),
+    ]
 
-    # Get OBJECTIDs for each zone to filter out inner zones from outer zones
+    zone_parcels = {}
+
+    # Query each zone for each stop
+    for zone_tag, distance_miles in zones:
+        print(f"\nFetching {zone_tag} parcels ({distance_miles:.4f} miles):")
+        all_parcels_list = []
+
+        for i, (_, stop) in enumerate(transit_stops.iterrows()):
+            stop_parcels = get_parcels_near_transit_stop(
+                parcel_api, stop.geometry, distance_miles, city_name
+            )
+            count = len(stop_parcels) if stop_parcels else 0
+            print(f"   Stop {i + 1}/{len(transit_stops)}: {count} parcels")
+            if stop_parcels:
+                all_parcels_list.extend(stop_parcels)
+
+        if all_parcels_list:
+            parcels = gpd.GeoDataFrame.from_features(all_parcels_list)
+            parcels = parcels.drop_duplicates(subset=['APN'], keep='first')
+            parcels['tier1_zone'] = zone_tag
+            zone_parcels[zone_tag] = parcels
+            print(f"✓ Found {len(parcels)} unique {zone_tag} parcels")
+        else:
+            zone_parcels[zone_tag] = gpd.GeoDataFrame()
+            print(f"No {zone_tag} parcels found")
+
+    # Get parcels for each zone
+    two_hundred_ft_parcels = zone_parcels['200ft']
+    quarter_mile_parcels = zone_parcels['quarter_mile']
+    half_mile_parcels = zone_parcels['half_mile']
+
+    # Filter to get exclusive zones (innermost zone takes priority)
     two_hundred_ft_objectids = set(two_hundred_ft_parcels['OBJECTID']) if len(two_hundred_ft_parcels) > 0 else set()
     quarter_mile_objectids = set(quarter_mile_parcels['OBJECTID']) if len(quarter_mile_parcels) > 0 else set()
 
-    # Filter to get exclusive zones (no overlap)
-    quarter_mile_only = quarter_mile_parcels[~quarter_mile_parcels['OBJECTID'].isin(two_hundred_ft_objectids)]
-    half_mile_only = half_mile_parcels[~half_mile_parcels['OBJECTID'].isin(quarter_mile_objectids)]
+    quarter_mile_only = quarter_mile_parcels[~quarter_mile_parcels['OBJECTID'].isin(two_hundred_ft_objectids)] if len(quarter_mile_parcels) > 0 else quarter_mile_parcels
+    half_mile_only = half_mile_parcels[~half_mile_parcels['OBJECTID'].isin(quarter_mile_objectids)] if len(half_mile_parcels) > 0 else half_mile_parcels
 
     # Combine all zones
     zones_to_combine = [df for df in [two_hundred_ft_parcels, quarter_mile_only, half_mile_only] if len(df) > 0]
     if not zones_to_combine:
         return gpd.GeoDataFrame()
-    all_parcels = gpd.GeoDataFrame(pd.concat(zones_to_combine, ignore_index=True))
+
+    parcels = gpd.GeoDataFrame(pd.concat(zones_to_combine, ignore_index=True))
 
     # Print Results
-    two_hundred_ft_count = len(all_parcels[all_parcels['tier1_zone'] == '200ft'])
-    quarter_count = len(all_parcels[all_parcels['tier1_zone'] == 'quarter_mile'])
-    half_count = len(all_parcels[all_parcels['tier1_zone'] == 'half_mile'])
+    two_hundred_ft_count = len(parcels[parcels['tier1_zone'] == '200ft'])
+    quarter_count = len(parcels[parcels['tier1_zone'] == 'quarter_mile'])
+    half_count = len(parcels[parcels['tier1_zone'] == 'half_mile'])
 
     print("\n✓ Tier 1 Parcel Summary:")
     print(f"  - 200ft zone (0-200ft): {two_hundred_ft_count} parcels")
     print(f"  - Quarter mile zone (200ft-0.25mi): {quarter_count} parcels")
     print(f"  - Half mile zone (0.25-0.5mi): {half_count} parcels")
-    print(f"  - Total: {len(all_parcels)} parcels")
+    print(f"  - Total: {len(parcels)} parcels")
 
-    return all_parcels
+    return parcels
 
 def get_zoning_districts(city_boundary):
     """
