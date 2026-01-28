@@ -164,9 +164,15 @@ function loadTopParcelsList() {
 
             sortedFeatures.forEach((feature, index) => {
                 const props = feature.properties;
-                const coords = feature.geometry.type === 'Polygon'
-                    ? getCentroid(feature.geometry.coordinates[0])
-                    : feature.geometry.coordinates;
+                let coords;
+                if (feature.geometry.type === 'Polygon') {
+                    coords = getCentroid(feature.geometry.coordinates[0]);
+                } else if (feature.geometry.type === 'MultiPolygon') {
+                    // For MultiPolygon, use the first polygon's exterior ring
+                    coords = getCentroid(feature.geometry.coordinates[0][0]);
+                } else {
+                    coords = feature.geometry.coordinates;
+                }
 
                 // Calculate capacity increases
                 const sb79Capacity = props.PotentialCapacity || 0;
