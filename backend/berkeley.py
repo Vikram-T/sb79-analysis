@@ -559,17 +559,20 @@ def add_potential_and_net_capacity(parcels):
 
 def load_zoning_limits():
     """
-    Load Berkeley zoning height limits from CSV.
+    Load Berkeley zoning limits from CSV.
 
     Returns:
-        dict mapping ZONECLASS to height_ft
+        dict with 'height' and 'max_density' dicts mapping ZONECLASS to values
     """
     csv_path = Path(__file__).parent / 'data' / 'zoning_limits.csv'
     df = pd.read_csv(csv_path, skipinitialspace=True)
     # Strip whitespace from column names and values
     df.columns = df.columns.str.strip()
     df['zoneclass'] = df['zoneclass'].str.strip()
-    return dict(zip(df['zoneclass'], df['height_ft']))
+    return {
+        'height': dict(zip(df['zoneclass'], df['height_ft'])),
+        'max_density': dict(zip(df['zoneclass'], df['max_density_du_acre']))
+    }
 
 
 def load_sb79_limits():
@@ -598,15 +601,15 @@ def load_sb79_limits():
     return result
 
 
-def add_height_limits(parcels):
+def add_zoning_and_sb79_limits(parcels):
     """
-    Add current zoning height limit and SB-79 minimum height to parcels.
+    Add current zoning limits and SB-79 minimums to parcels.
 
     Args:
-        parcels: GeoDataFrame with ZONECLASS and tier1_zone columns
+        parcels: GeoDataFrame with ZONECLASS, tier1_zone, and LotSize columns
 
     Returns:
-        GeoDataFrame with CurrentHeightLimit and SB79HeightLimit columns added
+        GeoDataFrame with CurrentHeightLimit, SB79HeightLimit, and CurrentMaxDensity columns added
     """
     if parcels is None or len(parcels) == 0:
         return parcels
@@ -615,15 +618,33 @@ def add_height_limits(parcels):
     sb79_limits = load_sb79_limits()
 
     # Add current height limit based on zoning
-    parcels['CurrentHeightLimit'] = parcels['ZONECLASS'].map(zoning_limits)
+    parcels['CurrentHeightLimit'] = parcels['ZONECLASS'].map(zoning_limits['height'])
 
     # Add SB-79 minimum height based on tier zone
     parcels['SB79HeightLimit'] = parcels['tier1_zone'].map(sb79_limits)
 
+    # Add current max density based on zoning
+    parcels['CurrentMaxDensity'] = parcels['ZONECLASS'].map(zoning_limits['max_density'])
+
+    # Calculate current zoned capacity (max density * lot size in acres)
+    # Only for parcels that have a max density limit
+    SQFT_PER_ACRE = 43560
+
+    def calc_current_capacity(row):
+        max_density = row.get('CurrentMaxDensity')
+        lot_size = row.get('LotSize', 0) or 0
+        if pd.isna(max_density) or max_density == 0:
+            return None  # No max density limit
+        acres = lot_size / SQFT_PER_ACRE
+        return acres * max_density
+
+    parcels['CurrentZonedCapacity'] = parcels.apply(calc_current_capacity, axis=1)
+
     # Report stats
-    has_current = parcels['CurrentHeightLimit'].notna().sum()
+    has_height = parcels['CurrentHeightLimit'].notna().sum()
+    has_density = parcels['CurrentMaxDensity'].notna().sum()
     has_sb79 = parcels['SB79HeightLimit'].notna().sum()
-    print(f"\n✓ Added height limits: {has_current}/{len(parcels)} have current zoning height, {has_sb79}/{len(parcels)} have SB-79 height")
+    print(f"\n✓ Added zoning limits: {has_height}/{len(parcels)} have height, {has_density}/{len(parcels)} have max density, {has_sb79}/{len(parcels)} have SB-79 height")
 
     return parcels
 
@@ -801,7 +822,7 @@ def main():
 
     tier1_parcels = add_potential_and_net_capacity(tier1_parcels)
 
-    tier1_parcels = add_height_limits(tier1_parcels)
+    tier1_parcels = add_zoning_and_sb79_limits(tier1_parcels)
 
     tier1_parcels = filter_zero_lotsize_parcels(tier1_parcels)
 

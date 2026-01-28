@@ -378,10 +378,13 @@ function createParcelPopupHTML(props, currentIndex, totalCount) {
         html += `<div class="popup-row"><strong>SB-79 Height Limit:</strong> ${props.SB79HeightLimit} ft</div>`;
     }
 
-    // Always display Potential Capacity and Net Increase, even if 0
+    // Capacity - current zoned vs SB-79 potential
+    if (props.CurrentZonedCapacity !== undefined && props.CurrentZonedCapacity !== null) {
+        html += `<div class="popup-row"><strong>Current Zoned Capacity:</strong> ${Math.round(props.CurrentZonedCapacity * 10) / 10}</div>`;
+    }
     const potentialCapacity = props.PotentialCapacity !== undefined ? Math.round(props.PotentialCapacity*10)/10 : 0;
     const netIncrease = props.NetIncreaseCapacity !== undefined ? Math.round(props.NetIncreaseCapacity*10)/10 : 0;
-    html += `<div class="popup-row"><strong>Potential Capacity:</strong> ${potentialCapacity}</div>`;
+    html += `<div class="popup-row"><strong>SB-79 Potential Capacity:</strong> ${potentialCapacity}</div>`;
     html += `<div class="popup-row"><strong>Net Increase:</strong> ${netIncrease}</div>`;
 
     if (props.tier1_zone) html += `<div class="popup-row"><strong>Tier Zone:</strong> ${props.tier1_zone}</div>`;
