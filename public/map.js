@@ -168,10 +168,24 @@ function loadTopParcelsList() {
                     ? getCentroid(feature.geometry.coordinates[0])
                     : feature.geometry.coordinates;
 
+                // Calculate capacity increases
+                const sb79Capacity = props.PotentialCapacity || 0;
+                const existingUnits = props.Units || 0;
+                const currentZonedCap = props.CurrentZonedCapacity;
+                const netFromExisting = Math.round(sb79Capacity - existingUnits);
+
+                // Build capacity display
+                let capacityHtml = `<div class="parcel-capacity">SB-79: ${Math.round(sb79Capacity).toLocaleString()} units</div>`;
+                capacityHtml += `<div class="parcel-increase">Existing → SB-79: +${netFromExisting.toLocaleString()}</div>`;
+                if (currentZonedCap !== null && currentZonedCap !== undefined) {
+                    const netFromZoning = Math.round(sb79Capacity - currentZonedCap);
+                    capacityHtml += `<div class="parcel-increase">Zoned → SB-79: +${netFromZoning.toLocaleString()}</div>`;
+                }
+
                 const li = document.createElement('li');
                 li.innerHTML = `
                     <div class="parcel-address">${index + 1}. ${props.SitusAddress || props.APN || 'Unknown'}</div>
-                    <div class="parcel-capacity">+${Math.round(props.NetIncreaseCapacity).toLocaleString()} units</div>
+                    ${capacityHtml}
                     <div class="parcel-details">${props.ZONECLASS || 'N/A'} · ${props.tier1_zone || 'N/A'} · ${(props.LotSize || 0).toLocaleString()} sq ft</div>
                 `;
 

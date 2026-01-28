@@ -456,7 +456,13 @@ body {
     font-weight: 600;
 }
 
+.top-parcels-list .parcel-increase {
+    color: #2196F3;
+    font-size: 12px;
+}
+
 .top-parcels-list .parcel-details {
     color: #666;
     font-size: 12px;
+    margin-top: 4px;
 }
