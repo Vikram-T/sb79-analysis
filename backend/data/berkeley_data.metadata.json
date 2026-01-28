@@ -1,25 +1,25 @@
 {
   "layers": {
     "city_boundary": {
-      "timestamp": "2026-01-14T16:47:31.672548",
+      "timestamp": "2026-01-27T23:29:13.434181",
       "record_count": 2,
       "source_api": "https://services3.arcgis.com/uknczv4rpevve42E/arcgis/rest/services/California_Cities_and_Identifiers_Blue_Version_view/FeatureServer/2/query"
     },
     "transit_stops": {
-      "timestamp": "2026-01-14T16:47:32.431890",
-      "record_count": 6,
+      "timestamp": "2026-01-27T23:29:13.981921",
+      "record_count": 8,
       "source_api": "https://caltrans-gis.dot.ca.gov/arcgis/rest/services/CHrailroad/CA_HQ_Transit_Stops/FeatureServer/0/query"
     },
     "zoning_districts": {
-      "timestamp": "2026-01-14T16:47:34.945455",
+      "timestamp": "2026-01-27T23:29:15.975184",
       "record_count": 42,
       "source_api": "https://gis.cityofberkeley.info/arcgis3/rest/services/Public/Portal_Planning/MapServer/7/query"
     },
     "parcels": {
-      "timestamp": "2026-01-14T16:47:48.313092",
-      "record_count": 7152,
+      "timestamp": "2026-01-27T23:29:30.421405",
+      "record_count": 7222,
       "source_api": "https://gis.cityofberkeley.info/arcgis3/rest/services/Public/GISPortal/MapServer/1/query"
     }
   },
-  "last_updated": "2026-01-14T16:47:48.313099"
+  "last_updated": "2026-01-27T23:29:30.421415"
 }
