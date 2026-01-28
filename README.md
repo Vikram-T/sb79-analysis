@@ -20,6 +20,10 @@ For more details take a look at the legislation: https://leginfo.legislature.ca.
 - **Static Deployment**: Frontend deployable to any static hosting (Cloudflare Pages, Netlify, etc.)
 - **Currently Supports**: Berkeley, CA 
 
+## Useful links
+- https://berkeley.maps.arcgis.com/apps/webappviewer/index.html?id=2c7dfafbb1f64e159f4fdf28a52f51c6&showLayers=Berkeley%20Parcels;Base%20Data;Planning%20and%20Building
+  - Web viewer for the various berkeley apis that exist
+
 ## Project Structure
 
 ```
