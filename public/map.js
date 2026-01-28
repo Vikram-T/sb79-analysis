@@ -75,6 +75,18 @@ function updateInfoPanel(metadata) {
         transitStopsList.classList.toggle('hidden');
         toggleButton.textContent = transitStopsList.classList.contains('hidden') ? 'Show List' : 'Hide List';
     });
+
+    // Load and populate top parcels list
+    loadTopParcelsList();
+
+    // Setup toggle button for top parcels list
+    const toggleTopParcels = document.getElementById('toggle-top-parcels');
+    const topParcelsList = document.getElementById('top-parcels-list');
+
+    toggleTopParcels.addEventListener('click', () => {
+        topParcelsList.classList.toggle('hidden');
+        toggleTopParcels.textContent = topParcelsList.classList.contains('hidden') ? 'Show List' : 'Hide List';
+    });
 }
 
 function loadTransitStopsList() {
@@ -135,6 +147,78 @@ function loadTransitStopsList() {
         .catch(error => {
             console.error('Error loading transit stops:', error);
         });
+}
+
+function loadTopParcelsList() {
+    fetch('data/parcels.geojson')
+        .then(response => response.json())
+        .then(data => {
+            const topParcelsItems = document.getElementById('top-parcels-items');
+            topParcelsItems.innerHTML = '';
+
+            // Sort parcels by NetIncreaseCapacity and get top 10
+            const sortedFeatures = data.features
+                .filter(f => f.properties.NetIncreaseCapacity > 0)
+                .sort((a, b) => b.properties.NetIncreaseCapacity - a.properties.NetIncreaseCapacity)
+                .slice(0, 10);
+
+            sortedFeatures.forEach((feature, index) => {
+                const props = feature.properties;
+                const coords = feature.geometry.type === 'Polygon'
+                    ? getCentroid(feature.geometry.coordinates[0])
+                    : feature.geometry.coordinates;
+
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <div class="parcel-address">${index + 1}. ${props.SitusAddress || props.APN || 'Unknown'}</div>
+                    <div class="parcel-capacity">+${Math.round(props.NetIncreaseCapacity).toLocaleString()} units</div>
+                    <div class="parcel-details">${props.ZONECLASS || 'N/A'} · ${props.tier1_zone || 'N/A'} · ${(props.LotSize || 0).toLocaleString()} sq ft</div>
+                `;
+
+                // Add click handler to zoom to and highlight the parcel
+                li.addEventListener('click', () => {
+                    // Close any existing popups first
+                    if (currentPopup) {
+                        currentPopup.remove();
+                        currentPopup = null;
+                    }
+
+                    // Fly to the parcel
+                    map.flyTo({
+                        center: coords,
+                        zoom: 18,
+                        duration: 1500
+                    });
+
+                    // Show popup for the parcel
+                    const html = createParcelPopupHTML(props, 0, 1);
+
+                    currentPopup = new maplibregl.Popup()
+                        .setLngLat(coords)
+                        .setHTML(html)
+                        .addTo(map);
+
+                    currentPopup.on('close', () => {
+                        currentPopup = null;
+                    });
+                });
+
+                topParcelsItems.appendChild(li);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading top parcels:', error);
+        });
+}
+
+// Helper function to calculate centroid of a polygon
+function getCentroid(coords) {
+    let sumX = 0, sumY = 0;
+    for (const coord of coords) {
+        sumX += coord[0];
+        sumY += coord[1];
+    }
+    return [sumX / coords.length, sumY / coords.length];
 }
 
 function loadDataSources() {
