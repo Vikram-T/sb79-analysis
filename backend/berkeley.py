@@ -164,8 +164,10 @@ def get_parcels_near_transit_stops(parcel_api, transit_stops, distance_miles, ci
                 return None
 
             if 'features' not in response_json or len(response_json['features']) == 0:
-                print(f"No parcels found within {distance_miles} miles of any transit stop")
-                return None
+                if len(parcels_list) == 0:
+                    print(f"No parcels found within {distance_miles} miles of any transit stop")
+                    return gpd.GeoDataFrame()
+                break  # No more results, exit loop with what we have
 
             parcel_json = response_json['features']
             parcels_list.extend(parcel_json)
@@ -206,41 +208,30 @@ def get_tier1_parcels(parcel_api, transit_stops, city_name):
     # Convert 200ft to miles: 200 / 5280 ≈ 0.0379
     two_hundred_ft_miles = 200 / 5280
 
-    # Get parcels within 0.5 miles (outer zone)
+    # Get parcels for each zone (returns empty GeoDataFrame if none found)
     half_mile_parcels = get_parcels_near_transit_stops(
         parcel_api, transit_stops, 0.5, city_name, zone_tag='half_mile'
     )
-    if half_mile_parcels is None:
-        return None
-
-    # Get parcels within 0.25 miles (middle zone)
     quarter_mile_parcels = get_parcels_near_transit_stops(
         parcel_api, transit_stops, 0.25, city_name, zone_tag='quarter_mile'
     )
-
-    if quarter_mile_parcels is None:
-        return half_mile_parcels
-
-    # Get parcels within 200ft (inner zone)
     two_hundred_ft_parcels = get_parcels_near_transit_stops(
         parcel_api, transit_stops, two_hundred_ft_miles, city_name, zone_tag='200ft'
     )
 
-    if two_hundred_ft_parcels is None:
-        return quarter_mile_parcels
+    # Get OBJECTIDs for each zone to filter out inner zones from outer zones
+    two_hundred_ft_objectids = set(two_hundred_ft_parcels['OBJECTID']) if len(two_hundred_ft_parcels) > 0 else set()
+    quarter_mile_objectids = set(quarter_mile_parcels['OBJECTID']) if len(quarter_mile_parcels) > 0 else set()
 
-    # Get OBJECTIDs for each zone
-    two_hundred_ft_objectids = set(two_hundred_ft_parcels['OBJECTID'])
-    quarter_mile_objectids = set(quarter_mile_parcels['OBJECTID'])
-
-    # Filter quarter_mile to exclude 200ft parcels
+    # Filter to get exclusive zones (no overlap)
     quarter_mile_only = quarter_mile_parcels[~quarter_mile_parcels['OBJECTID'].isin(two_hundred_ft_objectids)]
-
-    # Filter half_mile to exclude quarter_mile parcels (quarter_mile includes 200ft, so both are excluded)
     half_mile_only = half_mile_parcels[~half_mile_parcels['OBJECTID'].isin(quarter_mile_objectids)]
 
     # Combine all zones
-    all_parcels = gpd.GeoDataFrame(pd.concat([two_hundred_ft_parcels, quarter_mile_only, half_mile_only], ignore_index=True))
+    zones_to_combine = [df for df in [two_hundred_ft_parcels, quarter_mile_only, half_mile_only] if len(df) > 0]
+    if not zones_to_combine:
+        return gpd.GeoDataFrame()
+    all_parcels = gpd.GeoDataFrame(pd.concat(zones_to_combine, ignore_index=True))
 
     # Print Results
     two_hundred_ft_count = len(all_parcels[all_parcels['tier1_zone'] == '200ft'])
@@ -644,6 +635,10 @@ def export_geojson(gdf, filename):
     filepath = Path(filename)
     filepath.parent.mkdir(parents=True, exist_ok=True)
 
+    # Ensure CRS is set (GeoJSON standard is WGS84/EPSG:4326)
+    if gdf.crs is None:
+        gdf = gdf.set_crs(epsg=4326)
+
     # Export to GeoJSON
     gdf.to_file(str(filepath), driver='GeoJSON')
     print(f"✓ Exported {len(gdf)} features to {filepath}")
@@ -675,14 +670,15 @@ def main():
             return
     else:
         print("\n=== Fetching data from APIs ===")
-        # Get city boundary
-        city_geojson = get_city_boundary(city_name,0.6)
+        # Get city boundary (actual boundary for display/saving)
+        city_geojson = get_city_boundary(city_name)
         if city_geojson is None:
             return
         save_layer(city_geojson, city_name, LAYER_CITY_BOUNDARY, CITY_BOUNDARIES_URL)
 
-        # Get transit stops within boundary
-        transit_stops = get_transit_stops(city_geojson)
+        # Get transit stops within 0.5mi of city boundary (to capture stops whose radius overlaps the city)
+        city_buffered = get_city_boundary(city_name, buffer_miles=0.6)
+        transit_stops = get_transit_stops(city_buffered)
         if transit_stops is None:
             return
         save_layer(transit_stops, city_name, LAYER_TRANSIT_STOPS, HIGH_QUALITY_TRANSIT_STOPS_URL)
