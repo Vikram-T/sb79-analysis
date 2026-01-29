@@ -156,6 +156,17 @@ function loadTopParcelsList() {
             const topParcelsItems = document.getElementById('top-parcels-items');
             topParcelsItems.innerHTML = '';
 
+            // Add legend/explanation entry
+            const legend = document.createElement('li');
+            legend.className = 'parcel-legend';
+            legend.innerHTML = `
+                <div class="legend-title">How to read:</div>
+                <div class="legend-item"><strong>SB-79:</strong> Total potential capacity under SB-79</div>
+                <div class="legend-item"><strong>Existing → SB-79:</strong> Increase from current units</div>
+                <div class="legend-item"><strong>Zoned → SB-79:</strong> Increase from current zoning cap (R-1, R-2, R-2A zones only)</div>
+            `;
+            topParcelsItems.appendChild(legend);
+
             // Sort parcels by NetIncreaseCapacity and get top 10
             const sortedFeatures = data.features
                 .filter(f => f.properties.NetIncreaseCapacity > 0)
