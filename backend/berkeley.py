@@ -4,7 +4,7 @@ import requests
 import urllib
 import json
 from pathlib import Path
-# California State Geoportal - City Boundaries
+
 from config import (
     BERKELEY_PARCEL_API, CITY_BOUNDARIES_URL, HIGH_QUALITY_TRANSIT_STOPS_URL, BERKELEY_ZONING_API,
     BERKELEY_SOUTHSIDE_PLAN_API, DENSITY_200FT, DENSITY_QUARTER_MILE, DENSITY_HALF_MILE, USE_LOCAL_DATA
@@ -12,6 +12,12 @@ from config import (
 from data_store import (
     save_layer, load_layer,
     LAYER_CITY_BOUNDARY, LAYER_TRANSIT_STOPS, LAYER_ZONING, LAYER_PARCELS
+)
+from geo_utils import (
+    ensure_crs, project_to_utm, project_to_wgs84,
+    polygon_to_esri_geometry, point_to_esri_geometry,
+    fetch_all_paginated, validate_api_response,
+    TIER_200FT, TIER_QUARTER_MILE, TIER_HALF_MILE,
 )
 
 def get_city_boundary(city_name, buffer_miles=0):
@@ -47,15 +53,10 @@ def get_city_boundary(city_name, buffer_miles=0):
             # Convert miles to meters (1 mile = 1609.344 meters)
             buffer_meters = buffer_miles * 1609.344
 
-            # Project to UTM Zone 10N (EPSG:32610) for accurate distance calculations
-            # This CRS is appropriate for the San Francisco Bay Area
-            city_projected = city_geojson.to_crs(epsg=32610)
-
-            # Apply buffer in meters
+            # Project to UTM for accurate distance calculations
+            city_projected = project_to_utm(city_geojson)
             city_projected['geometry'] = city_projected.geometry.buffer(buffer_meters)
-
-            # Project back to WGS84 (EPSG:4326)
-            city_geojson = city_projected.to_crs(epsg=4326)
+            city_geojson = project_to_wgs84(city_projected)
 
             print(f"Applied {buffer_miles}-mile buffer to {city_name} boundary")
 
@@ -74,16 +75,10 @@ def get_transit_stops(city_boundary):
     Returns:
         GeoDataFrame containing transit stops, or None if error
     """
-    coords = list(city_boundary.geometry.iloc[0].exterior.coords)
-    esri_geometry = {
-        "rings": [coords],
-        "spatialReference": {"wkid": 4326}
-    }
-
     transit_params = {
         'where': "hqta_type='major_stop_rail' AND agency_primary!='Capitol Corridor Joint Powers Authority' AND agency_primary!='Amtrak'",
         'outFields': 'OBJECTID,agency_primary,hqta_type,stop_id,route_id,hqta_details',
-        'geometry': json.dumps(esri_geometry),
+        'geometry': json.dumps(polygon_to_esri_geometry(city_boundary)),
         'geometryType': 'esriGeometryPolygon',
         'inSR': '4326',
         'spatialRel': 'esriSpatialRelIntersects',
@@ -127,15 +122,9 @@ def get_parcels_near_transit_stop(parcel_api, stop_geometry, distance_miles, cit
     Returns:
         List of parcel features (GeoJSON), or empty list if none found
     """
-    esri_geometry = {
-        "x": stop_geometry.x,
-        "y": stop_geometry.y,
-        "spatialReference": {"wkid": 4326}
-    }
-
     parcel_params = {
         'where': f"SitusCity='{city_name}'",
-        'geometry': json.dumps(esri_geometry),
+        'geometry': json.dumps(point_to_esri_geometry(stop_geometry)),
         'geometryType': 'esriGeometryPoint',
         'distance': distance_miles,
         'units': 'esriSRUnit_StatuteMile',
@@ -145,40 +134,8 @@ def get_parcels_near_transit_stop(parcel_api, stop_geometry, distance_miles, cit
         'outSR': '4326',
         'f': 'geojson'
     }
-    parcels_list = []
-    offset = 0
-    batch_size = 2000
-    remaining_records = True
 
-    try:
-        while remaining_records:
-            parcel_params["resultOffset"] = offset
-            parcel_params["resultRecordCount"] = batch_size
-
-            response = requests.post(parcel_api, data=parcel_params)
-
-            if response.status_code != 200:
-                return []
-
-            response_json = response.json()
-
-            if 'error' in response_json:
-                return []
-
-            if 'features' not in response_json or len(response_json['features']) == 0:
-                break
-
-            parcel_json = response_json['features']
-            parcels_list.extend(parcel_json)
-
-            remaining_records = response_json.get("properties", {}).get("exceededTransferLimit", False)
-            offset += batch_size
-
-        return parcels_list
-
-    except Exception as e:
-        print(f"Error fetching parcels for stop: {e}")
-        return []
+    return fetch_all_paginated(parcel_api, parcel_params, verbose=False)
 
 
 def get_tier1_parcels(parcel_api, transit_stops, city_name):
@@ -196,16 +153,11 @@ def get_tier1_parcels(parcel_api, transit_stops, city_name):
     Returns:
         GeoDataFrame with all parcels tagged with their tier1_zone, or empty GeoDataFrame if none
     """
-    # Distance thresholds in miles
-    TWO_HUNDRED_FT_MILES = 200 / 5280  # ~0.0379
-    QUARTER_MILE = 0.25
-    HALF_MILE = 0.5
-
-    # Define zones from innermost to outermost
+    # Distance thresholds in miles (innermost to outermost)
     zones = [
-        ('200ft', TWO_HUNDRED_FT_MILES),
-        ('quarter_mile', QUARTER_MILE),
-        ('half_mile', HALF_MILE),
+        (TIER_200FT, 200 / 5280),  # ~0.0379 miles
+        (TIER_QUARTER_MILE, 0.25),
+        (TIER_HALF_MILE, 0.5),
     ]
 
     zone_parcels = {}
@@ -235,9 +187,9 @@ def get_tier1_parcels(parcel_api, transit_stops, city_name):
             print(f"No {zone_tag} parcels found")
 
     # Get parcels for each zone
-    two_hundred_ft_parcels = zone_parcels['200ft']
-    quarter_mile_parcels = zone_parcels['quarter_mile']
-    half_mile_parcels = zone_parcels['half_mile']
+    two_hundred_ft_parcels = zone_parcels[TIER_200FT]
+    quarter_mile_parcels = zone_parcels[TIER_QUARTER_MILE]
+    half_mile_parcels = zone_parcels[TIER_HALF_MILE]
 
     # Filter to get exclusive zones (innermost zone takes priority)
     two_hundred_ft_objectids = set(two_hundred_ft_parcels['OBJECTID']) if len(two_hundred_ft_parcels) > 0 else set()
@@ -254,9 +206,9 @@ def get_tier1_parcels(parcel_api, transit_stops, city_name):
     parcels = gpd.GeoDataFrame(pd.concat(zones_to_combine, ignore_index=True))
 
     # Print Results
-    two_hundred_ft_count = len(parcels[parcels['tier1_zone'] == '200ft'])
-    quarter_count = len(parcels[parcels['tier1_zone'] == 'quarter_mile'])
-    half_count = len(parcels[parcels['tier1_zone'] == 'half_mile'])
+    two_hundred_ft_count = len(parcels[parcels['tier1_zone'] == TIER_200FT])
+    quarter_count = len(parcels[parcels['tier1_zone'] == TIER_QUARTER_MILE])
+    half_count = len(parcels[parcels['tier1_zone'] == TIER_HALF_MILE])
 
     print("\n✓ Tier 1 Parcel Summary:")
     print(f"  - 200ft zone (0-200ft): {two_hundred_ft_count} parcels")
@@ -276,15 +228,9 @@ def get_zoning_districts(city_boundary):
     Returns:
         GeoDataFrame containing zoning districts, or None if error
     """
-    coords = list(city_boundary.geometry.iloc[0].exterior.coords)
-    esri_geometry = {
-        "rings": [coords],
-        "spatialReference": {"wkid": 4326}
-    }
-
     zoning_params = {
         'where': '1=1',
-        'geometry': json.dumps(esri_geometry),
+        'geometry': json.dumps(polygon_to_esri_geometry(city_boundary)),
         'geometryType': 'esriGeometryPolygon',
         'inSR': '4326',
         'spatialRel': 'esriSpatialRelIntersects',
@@ -293,49 +239,16 @@ def get_zoning_districts(city_boundary):
         'f': 'geojson'
     }
 
-    zones_list = []
-    offset = 0
-    batch_size = 2000
-    remaining_records = True
+    zones_list = fetch_all_paginated(BERKELEY_ZONING_API, zoning_params)
 
-    try:
-        while remaining_records:
-            zoning_params["resultOffset"] = offset
-            zoning_params["resultRecordCount"] = batch_size
-
-            response = requests.post(BERKELEY_ZONING_API, data=zoning_params)
-
-            if response.status_code != 200:
-                print(f"Error fetching zoning districts: HTTP {response.status_code}")
-                return None
-
-            response_json = response.json()
-
-            if 'error' in response_json:
-                print(f"Error fetching zoning districts: {response_json['error']}")
-                return None
-
-            if 'features' not in response_json or len(response_json['features']) == 0:
-                if len(zones_list) == 0:
-                    print("No zoning districts found")
-                    return None
-                break
-
-            zone_json = response_json['features']
-            zones_list.extend(zone_json)
-
-            remaining_records = response_json.get("properties", {}).get("exceededTransferLimit", False)
-            print(f"   Fetched zoning batch at offset {offset}: {len(zone_json)} zones (total: {len(zones_list)})")
-            offset += batch_size
-
-        zones = gpd.GeoDataFrame.from_features(zones_list)
-        zones = zones.set_crs(epsg=4326)
-        print(f"✓ Found {len(zones)} zoning districts")
-        return zones
-
-    except Exception as e:
-        print(f"Error fetching zoning districts: {e}")
+    if not zones_list:
+        print("No zoning districts found")
         return None
+
+    zones = gpd.GeoDataFrame.from_features(zones_list)
+    zones = ensure_crs(zones)
+    print(f"✓ Found {len(zones)} zoning districts")
+    return zones
 
 def add_zoning_to_parcels(parcels, zoning_districts):
     """
@@ -351,15 +264,11 @@ def add_zoning_to_parcels(parcels, zoning_districts):
     if parcels is None or zoning_districts is None:
         return parcels
 
-    # Ensure both have CRS set
-    if parcels.crs is None:
-        parcels = parcels.set_crs(epsg=4326)
-    if zoning_districts.crs is None:
-        zoning_districts = zoning_districts.set_crs(epsg=4326)
-
-    # Project to UTM Zone 10N (EPSG:32610) for accurate centroid calculation
-    parcels_projected = parcels.to_crs(epsg=32610)
-    zoning_projected = zoning_districts.to_crs(epsg=32610)
+    # Ensure both have CRS set and project to UTM for accurate centroid calculation
+    parcels = ensure_crs(parcels)
+    zoning_districts = ensure_crs(zoning_districts)
+    parcels_projected = project_to_utm(parcels)
+    zoning_projected = project_to_utm(zoning_districts)
 
     # Create centroids in projected CRS for accurate zone matching
     parcels_with_centroids = parcels_projected.copy()
@@ -377,7 +286,7 @@ def add_zoning_to_parcels(parcels, zoning_districts):
     # Restore original geometry (in WGS84) and drop centroid column
     joined = joined.set_geometry(parcels.geometry)
     joined = joined.drop(columns=['centroid', 'index_right'], errors='ignore')
-    joined = joined.set_crs(epsg=4326)
+    joined = ensure_crs(joined)
 
     # Handle duplicates (parcel centroid in multiple zones - take first)
     if 'APN' in joined.columns:
@@ -421,15 +330,10 @@ def get_southside_plan_boundary():
 
     try:
         response = requests.post(BERKELEY_SOUTHSIDE_PLAN_API, data=params)
+        is_valid, response_json, error_msg = validate_api_response(response)
 
-        if response.status_code != 200:
-            print(f"Error fetching Southside Plan boundary: HTTP {response.status_code}")
-            return None
-
-        response_json = response.json()
-
-        if 'error' in response_json:
-            print(f"Error fetching Southside Plan boundary: {response_json['error']}")
+        if not is_valid:
+            print(f"Error fetching Southside Plan boundary: {error_msg}")
             return None
 
         if 'features' not in response_json or len(response_json['features']) == 0:
@@ -437,7 +341,7 @@ def get_southside_plan_boundary():
             return None
 
         boundary = gpd.GeoDataFrame.from_features(response_json['features'])
-        boundary = boundary.set_crs(epsg=4326)
+        boundary = ensure_crs(boundary)
         print("✓ Fetched Southside Plan boundary")
         return boundary
 
@@ -473,15 +377,11 @@ def reclassify_r3_in_southside(parcels, southside_boundary):
         print("✓ No R-3 parcels found - Southside reclassification not needed")
         return parcels
 
-    # Ensure both have CRS set
-    if parcels.crs is None:
-        parcels = parcels.set_crs(epsg=4326)
-    if southside_boundary.crs is None:
-        southside_boundary = southside_boundary.set_crs(epsg=4326)
-
-    # Project to UTM Zone 10N for accurate spatial operations
-    parcels_projected = parcels.to_crs(epsg=32610)
-    boundary_projected = southside_boundary.to_crs(epsg=32610)
+    # Ensure both have CRS set and project to UTM for accurate spatial operations
+    parcels = ensure_crs(parcels)
+    southside_boundary = ensure_crs(southside_boundary)
+    parcels_projected = project_to_utm(parcels)
+    boundary_projected = project_to_utm(southside_boundary)
 
     # Combine all boundary polygons into one (in case there are multiple)
     combined_boundary = boundary_projected.union_all()
@@ -523,9 +423,9 @@ def add_potential_and_net_capacity(parcels):
 
     # Map tier zones to density limits
     density_map = {
-        '200ft': DENSITY_200FT,
-        'quarter_mile': DENSITY_QUARTER_MILE,
-        'half_mile': DENSITY_HALF_MILE
+        TIER_200FT: DENSITY_200FT,
+        TIER_QUARTER_MILE: DENSITY_QUARTER_MILE,
+        TIER_HALF_MILE: DENSITY_HALF_MILE
     }
 
     def calc_capacity(row):
@@ -685,13 +585,9 @@ def filter_parcels_with_same_centroid(parcels):
         print("No parcels to analyze")
         return parcels
 
-    # Ensure CRS is set
-    parcels_copy = parcels.copy()
-    if parcels_copy.crs is None:
-        parcels_copy = parcels_copy.set_crs(epsg=4326)
-
-    # Project to UTM Zone 10N (EPSG:32610) for accurate centroid calculation
-    parcels_projected = parcels_copy.to_crs(epsg=32610)
+    # Ensure CRS is set and project to UTM for accurate centroid calculation
+    parcels_copy = ensure_crs(parcels.copy())
+    parcels_projected = project_to_utm(parcels_copy)
 
     # Calculate centroids in projected CRS
     parcels_projected['centroid'] = parcels_projected.geometry.centroid
@@ -718,7 +614,7 @@ def filter_parcels_with_same_centroid(parcels):
     indices_to_remove = set()
 
     # Print details for each group and identify parcels to remove
-    for (x, y), group in grouped:
+    for _, group in grouped:
         if len(group) > 1:
             # Filter out parcels with BLDSQFTTAXABLE > 0 from this group
             to_remove = group[group['BLDSQFTTAXABLE'] > 0]
@@ -749,8 +645,7 @@ def export_geojson(gdf, filename):
     filepath.parent.mkdir(parents=True, exist_ok=True)
 
     # Ensure CRS is set (GeoJSON standard is WGS84/EPSG:4326)
-    if gdf.crs is None:
-        gdf = gdf.set_crs(epsg=4326)
+    gdf = ensure_crs(gdf)
 
     # Export to GeoJSON
     gdf.to_file(str(filepath), driver='GeoJSON')
@@ -829,9 +724,9 @@ def main():
     tier1_parcels = filter_parcels_with_same_centroid(tier1_parcels)
 
 
-    two_hundred_ft_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "200ft"]
-    quarter_mile_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "quarter_mile"]
-    half_mile_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == "half_mile"]
+    two_hundred_ft_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == TIER_200FT]
+    quarter_mile_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == TIER_QUARTER_MILE]
+    half_mile_parcels = tier1_parcels[tier1_parcels['tier1_zone'] == TIER_HALF_MILE]
 
     # Print existing units and potential capacity summary by tier zone
     if 'Units' in tier1_parcels.columns:

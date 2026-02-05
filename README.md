@@ -149,6 +149,5 @@ Edit `config.py` to customize:
 
 ### General Code Cleanup
 - [ ] Confirm the Net Capacity Calculation with someone 
-- [ ] Look into making  API request batching a generic so we don't repeat functionality get_zoning_districts and get_parcels_near_transit_stops 
 - [ ] Look into moving data saving out of this function so we always pull from local data and update with a different function 
 
