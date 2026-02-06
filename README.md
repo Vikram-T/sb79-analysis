@@ -15,7 +15,7 @@ For more details take a look at the legislation: https://leginfo.legislature.ca.
 
 - **Automated Data Collection**: Can pull real-time data from California State APIs (city boundaries, transit stops, parcels, zoning)
 - **SB-79 Tier Classification**: Categorizes parcels by distance from transit stops (200ft, quarter-mile, half-mile zones)
-- **Capacity Calculations**: Computes potential and net increase housing capacity per SB-79 regulations
+- **Capacity Calculations**: Computes potential increase in housing capacity per SB-79 regulations
 - **Local Caching**: GeoPackage storage for faster repeat runs without API calls
 - **Static Deployment**: Frontend deployable to any static hosting (Cloudflare Pages, Netlify, etc.)
 - **Currently Supports**: Berkeley, CA 
@@ -29,12 +29,22 @@ For more details take a look at the legislation: https://leginfo.legislature.ca.
 ```
 sb79-analysis/
 ├── backend/                    # Python data processing
-│   ├── berkeley.py            # Main script to fetch and process data
-│   ├── config.py              # Configuration and API endpoints
+│   ├── pipeline.py            # Generic SB-79 pipeline (fetch, process, export)
+│   ├── berkeley.py            # Berkeley-specific config and overlays
+│   ├── city_config.py         # CityConfig dataclass (add new cities here)
+│   ├── config.py              # State-level constants and API endpoints
+│   ├── geo_utils.py           # Reusable geospatial utilities (CRS, ESRI, pagination)
 │   ├── data_store.py          # Local data storage utilities (GeoPackage)
-│   └── data/                  # Cached data (generated)
-│       ├── berkeley_data.gpkg              # GeoPackage with all layers
-│       └── berkeley_data.metadata.json     # Data source metadata
+│   ├── data/                  # Cached data and reference CSVs
+│   │   ├── berkeley_data.gpkg              # GeoPackage with all layers
+│   │   ├── berkeley_data.metadata.json     # Data source metadata
+│   │   ├── zoning_limits.csv               # City zoning height/density limits
+│   │   └── sb79_limits.csv                 # SB-79 tier height/density minimums
+│   └── tests/                 # pytest test suite
+│       ├── conftest.py        # Shared GeoDataFrame fixtures
+│       ├── test_geo_utils.py  # Tests for geospatial utilities
+│       ├── test_pipeline.py   # Tests for generic pipeline functions
+│       └── test_berkeley.py   # Tests for Berkeley-specific functions
 ├── public/                    # Frontend (static site - deployment ready)
 │   ├── index.html            # Main map interface
 │   ├── style.css             # Styles
@@ -54,9 +64,9 @@ sb79-analysis/
 ### Installation
 
 1. Ensure you have Python 3.14+ installed and uv
-2. Use uv sync to install dependencies:
+2. Install dependencies:
 ```bash
-uv sync
+uv sync --group dev   # includes pytest for testing
 ```
 
 ### Running the Analysis
@@ -69,14 +79,20 @@ uv run berkeley.py
 ```
 
 This will:
-1. Fetch city boundary from California State Geoportal
-2. Fetch high-quality transit stops within Berkeley
-3. Fetch zoning districts from Berkeley's GIS
-4. Fetch all parcels within 0.5 miles of transit stops (in three zones: 200ft, quarter-mile, half-mile)
-5. Add zoning information to each parcel using spatial join
-6. Filter for residential, commercial, and mixed-use parcels only (ZONECLASS: R-*, C-*, ES-R)
-7. Filter out parcels with zero lot size
-8. Calculate potential capacity based on SB-79 density limits and lot size
+1. Fetch Data
+   1. Fetch city boundary from California State Geoportal
+   2. Fetch high-quality transit stops within Berkeley
+   3. Fetch zoning districts from City GIS 
+   4. Fetch all parcels within 0.5 miles of transit stops (in three zones: 200ft, quarter-mile, half-mile)
+2. Combine Data
+   1. Add zoning information to each parcel using spatial join
+   2. Add SB-79 Height Limits
+3. Filter Data
+   1. Filter for residential, commercial, and mixed-use parcels only  
+   2. Filter out parcels with zero lot size
+   3. Filter out parcels with the same centroid
+   4. Remove duplicate parcels sharing the same centroid (keeps only parcels with BLDSQFTTAXABLE = 0)
+4. Calculate potential capacity based on SB-79 density limits and lot size
    ```python
    density_value = {
       DENSITY_200FT = 160 du/acre
@@ -88,10 +104,9 @@ This will:
       parcel_capacity = max(parcel_area * density_value - existing_capacity)
       total_net_capacity += parcel_capacity
    ```
-   - To see the actual formula see `add_potential_and_net_capacity()` in berkeley.py
-10. Remove duplicate parcels sharing the same centroid (keeps only parcels with BLDSQFTTAXABLE = 0)
-11. Save all data to `backend/berkeley_data.gpkg` for future use
-12. Export GeoJSON files to `public/data/` for the map
+   - To see the actual formula see `add_potential_and_net_capacity()` in pipeline.py
+5. Save all data to `backend/berkeley_data.gpkg` for future use
+6. Export GeoJSON files to `public/data/` for the map
 
 **Subsequent runs** (use cached data):
 ```bash
@@ -125,13 +140,40 @@ python -m http.server 8000
 # Open http://localhost:8000 in your browser
 ```
 
+### Running Tests
+
+```bash
+uv run pytest -v
+```
+
+66 tests covering the pure pipeline functions (capacity calculations, zoning limits, parcel filtering, geospatial utilities).
+
+## Adding a New City
+
+The pipeline is driven by `CityConfig` (defined in `city_config.py`). To add a new city, define a config object in `berkeley.py` (or a new file) and call `process_city()`:
+
+```python
+from city_config import CityConfig
+
+OAKLAND_CONFIG = CityConfig(
+    name="Oakland",
+    parcel_api="https://...",
+    zoning_api="https://...",
+    parcel_city_field="SitusCity",
+    parcel_city_value="Oakland",
+)
+
+process_city(OAKLAND_CONFIG)
+```
+
+Optional fields: `zone_prefix_filter`, `zoning_limits_csv`, `transit_stop_where`, `overlays` (list of `Callable[[GeoDataFrame], GeoDataFrame]` for city-specific post-processing like Berkeley's Southside Plan reclassification).
+
 ## Configuration
 
 Edit `config.py` to customize:
-- API endpoints (change city APIs for other locations)
+- State-level API endpoints (city boundaries, transit stops)
 - SB-79 density limits (`DENSITY_200FT`, `DENSITY_QUARTER_MILE`, `DENSITY_HALF_MILE`)
 - Data caching behavior (`USE_LOCAL_DATA`)
-- Map display settings
 
 ## TODOs
 
@@ -148,6 +190,8 @@ Edit `config.py` to customize:
 
 
 ### General Code Cleanup
-- [ ] Confirm the Net Capacity Calculation with someone 
-- [ ] Look into moving data saving out of this function so we always pull from local data and update with a different function 
+- [ ] Confirm the Net Capacity Calculation with someone
+- [ ] Look into moving data saving out of this function so we always pull from local data and update with a different function
+- [x] Wire CityConfig through the pipeline so adding a new city is just a config object
+- [x] Add pytest test suite for pure pipeline functions
 
