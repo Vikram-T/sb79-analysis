@@ -7,6 +7,7 @@ from pathlib import Path
 import geopandas as gpd
 
 from config import DATA_DIR
+from geo_utils import ensure_crs
 
 # Layer names in the GeoPackage
 LAYER_CITY_BOUNDARY = "city_boundary"
@@ -18,13 +19,6 @@ LAYER_PARCELS = "parcels"
 def _get_gpkg_path(city_name):
     """Get the GeoPackage file path for a city."""
     return Path(DATA_DIR) / f"{city_name.lower()}_data.gpkg"
-
-
-def _ensure_crs(gdf, default_crs="EPSG:4326"):
-    """Ensure GeoDataFrame has CRS set, defaulting to WGS84."""
-    if gdf.crs is None:
-        return gdf.set_crs(default_crs)
-    return gdf
 
 
 def _ensure_data_dir():
@@ -75,7 +69,7 @@ def save_layer(gdf, city_name, layer_name, source_api=None):
     _ensure_data_dir()
     gpkg_path = _get_gpkg_path(city_name)
 
-    gdf = _ensure_crs(gdf)
+    gdf = ensure_crs(gdf)
     gdf.to_file(gpkg_path, layer=layer_name, driver="GPKG")
     _save_metadata(gpkg_path, layer_name, len(gdf), source_api)
     print(f"  [data_store] Saved {len(gdf)} {layer_name} to {gpkg_path}")

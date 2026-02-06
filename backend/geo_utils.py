@@ -9,7 +9,6 @@ import requests
 
 # CRS constants
 CRS_WGS84 = "EPSG:4326"
-CRS_UTM_10N = "EPSG:32610"  # UTM Zone 10N - appropriate for SF Bay Area
 
 # Tier zone constants
 TIER_200FT = "200ft"
@@ -43,16 +42,20 @@ def ensure_crs(gdf, crs=CRS_WGS84):
 
 def project_to_utm(gdf):
     """
-    Project GeoDataFrame to UTM Zone 10N for accurate distance calculations.
+    Project GeoDataFrame to the appropriate UTM zone for accurate distance calculations.
+
+    Automatically detects the correct UTM zone based on the geometry's location,
+    so this works for any city in California (or anywhere else).
 
     Args:
         gdf: GeoDataFrame in any CRS
 
     Returns:
-        GeoDataFrame projected to EPSG:32610 (UTM Zone 10N)
+        GeoDataFrame projected to the estimated UTM CRS
     """
     gdf = ensure_crs(gdf)
-    return gdf.to_crs(CRS_UTM_10N)
+    utm_crs = gdf.estimate_utm_crs()
+    return gdf.to_crs(utm_crs)
 
 
 def project_to_wgs84(gdf):
@@ -76,15 +79,22 @@ def polygon_to_esri_geometry(gdf):
     """
     Convert a GeoDataFrame polygon to ESRI geometry format for API queries.
 
+    Handles both Polygon and MultiPolygon geometries. For MultiPolygon,
+    each sub-polygon becomes a separate ring in the ESRI geometry.
+
     Args:
-        gdf: GeoDataFrame containing a polygon geometry
+        gdf: GeoDataFrame containing a polygon or multipolygon geometry
 
     Returns:
         dict: ESRI geometry object with rings and spatial reference
     """
-    coords = list(gdf.geometry.iloc[0].exterior.coords)
+    geom = gdf.geometry.iloc[0]
+    if geom.geom_type == "MultiPolygon":
+        rings = [list(polygon.exterior.coords) for polygon in geom.geoms]
+    else:
+        rings = [list(geom.exterior.coords)]
     return {
-        "rings": [coords],
+        "rings": rings,
         "spatialReference": {"wkid": 4326}
     }
 

@@ -1,16 +1,15 @@
 # config.py
-# API endpoints and dataset identifiers for SB-79 mapping
+# Shared API endpoints and SB-79 parameters (state-level, same for all cities)
 
-# California State Geoportal endpoints
+# =============================================================================
+# State-level endpoints
+# =============================================================================
+
 CITY_BOUNDARIES_URL = "https://services3.arcgis.com/uknczv4rpevve42E/arcgis/rest/services/California_Cities_and_Identifiers_Blue_Version_view/FeatureServer/2/query"
 
 HIGH_QUALITY_TRANSIT_STOPS_URL = "https://caltrans-gis.dot.ca.gov/arcgis/rest/services/CHrailroad/CA_HQ_Transit_Stops/FeatureServer/0/query"
 
-BERKELEY_PARCEL_API = "https://gis.cityofberkeley.info/arcgis3/rest/services/Public/GISPortal/MapServer/1/query"
-BERKELEY_ZONING_API = "https://gis.cityofberkeley.info/arcgis3/rest/services/Public/Portal_Planning/MapServer/7/query"
-BERKELEY_SOUTHSIDE_PLAN_API = "https://gis.cityofberkeley.info/arcgis3/rest/services/Public/Portal_Planning/MapServer/13/query"
-
-# SB-79 parameters
+# SB-79 parameters (state law — same for all cities)
 TIER1_BUFFER_MILES = 0.5
 TIER2_BUFFER_MILES = 0.25
 

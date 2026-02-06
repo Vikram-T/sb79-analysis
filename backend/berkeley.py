@@ -5,9 +5,10 @@ import urllib
 import json
 from pathlib import Path
 
+from city_config import CityConfig
 from config import (
-    BERKELEY_PARCEL_API, CITY_BOUNDARIES_URL, HIGH_QUALITY_TRANSIT_STOPS_URL, BERKELEY_ZONING_API,
-    BERKELEY_SOUTHSIDE_PLAN_API, DENSITY_200FT, DENSITY_QUARTER_MILE, DENSITY_HALF_MILE, USE_LOCAL_DATA
+    CITY_BOUNDARIES_URL, HIGH_QUALITY_TRANSIT_STOPS_URL,
+    DENSITY_200FT, DENSITY_QUARTER_MILE, DENSITY_HALF_MILE, USE_LOCAL_DATA
 )
 from data_store import (
     save_layer, load_layer,
@@ -18,6 +19,23 @@ from geo_utils import (
     polygon_to_esri_geometry, point_to_esri_geometry,
     fetch_all_paginated, validate_api_response,
     TIER_200FT, TIER_QUARTER_MILE, TIER_HALF_MILE,
+)
+
+# =============================================================================
+# Berkeley-specific configuration
+# =============================================================================
+
+BERKELEY_PARCEL_API = "https://gis.cityofberkeley.info/arcgis3/rest/services/Public/GISPortal/MapServer/1/query"
+BERKELEY_ZONING_API = "https://gis.cityofberkeley.info/arcgis3/rest/services/Public/Portal_Planning/MapServer/7/query"
+BERKELEY_SOUTHSIDE_PLAN_API = "https://gis.cityofberkeley.info/arcgis3/rest/services/Public/Portal_Planning/MapServer/13/query"
+
+BERKELEY_CONFIG = CityConfig(
+    name="Berkeley",
+    parcel_api=BERKELEY_PARCEL_API,
+    zoning_api=BERKELEY_ZONING_API,
+    parcel_city_field="SitusCity",
+    parcel_city_value="Berkeley",
+    zone_prefix_filter=("C-", "R-"),
 )
 
 def get_city_boundary(city_name, buffer_miles=0):
@@ -428,27 +446,15 @@ def add_potential_and_net_capacity(parcels):
         TIER_HALF_MILE: DENSITY_HALF_MILE
     }
 
-    def calc_capacity(row):
-        lot_size = row.get('LotSize', 0) or 0
-        tier_zone = row.get('tier1_zone', '')
-        density = density_map.get(tier_zone, 0)
-
-        # Convert lot size from sq ft to acres and multiply by density
-        acres = lot_size / SQFT_PER_ACRE
-        return acres * density
-
-    parcels['PotentialCapacity'] = parcels.apply(calc_capacity, axis=1)
+    # Vectorized: map tier zone to density, then multiply by lot size in acres
+    lot_acres = parcels['LotSize'].fillna(0) / SQFT_PER_ACRE
+    density = parcels['tier1_zone'].map(density_map).fillna(0)
+    parcels['PotentialCapacity'] = lot_acres * density
 
     # Calculating net capacity based on SB-79 65912.161. (a) (1)
     # Essentially we take (potential capacity based on distance from transit) - (existing capacity) = net_capacity
     # This incentivizes development on parking lots over places that already have housing
-    def net_capacity(row):
-        potential = row.get('PotentialCapacity', 0)
-        existing = row.get('Units', 0)
-
-        return max(potential - existing, 0)
-
-    parcels["NetIncreaseCapacity"] = parcels.apply(net_capacity,axis=1)
+    parcels['NetIncreaseCapacity'] = (parcels['PotentialCapacity'] - parcels['Units'].fillna(0)).clip(lower=0)
 
     # Print summary
     print(f"\n✓ Calculated potential capacity for {len(parcels)} parcels")
@@ -530,15 +536,12 @@ def add_zoning_and_sb79_limits(parcels):
     # Only for parcels that have a max density limit
     SQFT_PER_ACRE = 43560
 
-    def calc_current_capacity(row):
-        max_density = row.get('CurrentMaxDensity')
-        lot_size = row.get('LotSize', 0) or 0
-        if pd.isna(max_density) or max_density == 0:
-            return None  # No max density limit
-        acres = lot_size / SQFT_PER_ACRE
-        return acres * max_density
-
-    parcels['CurrentZonedCapacity'] = parcels.apply(calc_current_capacity, axis=1)
+    # Vectorized: where max density exists and is non-zero, compute capacity
+    max_density = parcels['CurrentMaxDensity']
+    lot_acres = parcels['LotSize'].fillna(0) / SQFT_PER_ACRE
+    has_density = max_density.notna() & (max_density != 0)
+    parcels['CurrentZonedCapacity'] = pd.Series(index=parcels.index, dtype=float)
+    parcels.loc[has_density, 'CurrentZonedCapacity'] = lot_acres[has_density] * max_density[has_density]
 
     # Report stats
     has_height = parcels['CurrentHeightLimit'].notna().sum()
