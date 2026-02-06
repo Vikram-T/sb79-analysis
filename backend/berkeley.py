@@ -22,21 +22,12 @@ from geo_utils import (
 )
 
 # =============================================================================
-# Berkeley-specific configuration
+# Berkeley-specific API URLs (used by defaults in function signatures)
 # =============================================================================
 
 BERKELEY_PARCEL_API = "https://gis.cityofberkeley.info/arcgis3/rest/services/Public/GISPortal/MapServer/1/query"
 BERKELEY_ZONING_API = "https://gis.cityofberkeley.info/arcgis3/rest/services/Public/Portal_Planning/MapServer/7/query"
 BERKELEY_SOUTHSIDE_PLAN_API = "https://gis.cityofberkeley.info/arcgis3/rest/services/Public/Portal_Planning/MapServer/13/query"
-
-BERKELEY_CONFIG = CityConfig(
-    name="Berkeley",
-    parcel_api=BERKELEY_PARCEL_API,
-    zoning_api=BERKELEY_ZONING_API,
-    parcel_city_field="SitusCity",
-    parcel_city_value="Berkeley",
-    zone_prefix_filter=("C-", "R-"),
-)
 
 def get_city_boundary(city_name, buffer_miles=0):
     """
@@ -83,18 +74,19 @@ def get_city_boundary(city_name, buffer_miles=0):
         print(f"Error fetching city boundary: {e}")
         return None
 
-def get_transit_stops(city_boundary):
+def get_transit_stops(city_boundary, transit_stop_where="hqta_type='major_stop_rail' AND agency_primary!='Capitol Corridor Joint Powers Authority' AND agency_primary!='Amtrak'"):
     """
     Fetch high quality transit stops within a city boundary from California State Geoportal.
 
     Args:
         city_boundary: GeoDataFrame containing the city boundary
+        transit_stop_where: WHERE clause to filter transit stops
 
     Returns:
         GeoDataFrame containing transit stops, or None if error
     """
     transit_params = {
-        'where': "hqta_type='major_stop_rail' AND agency_primary!='Capitol Corridor Joint Powers Authority' AND agency_primary!='Amtrak'",
+        'where': transit_stop_where,
         'outFields': 'OBJECTID,agency_primary,hqta_type,stop_id,route_id,hqta_details',
         'geometry': json.dumps(polygon_to_esri_geometry(city_boundary)),
         'geometryType': 'esriGeometryPolygon',
@@ -119,7 +111,7 @@ def get_transit_stops(city_boundary):
         print(f"Error fetching transit stops: {e}")
         return None
 
-def get_parcels_near_transit_stop(parcel_api, stop_geometry, distance_miles, city_name):
+def get_parcels_near_transit_stop(parcel_api, stop_geometry, distance_miles, city_name, parcel_city_field="SitusCity"):
     """
     Fetch all parcels within a specified distance from a single transit stop.
 
@@ -136,12 +128,13 @@ def get_parcels_near_transit_stop(parcel_api, stop_geometry, distance_miles, cit
         stop_geometry: Point geometry of the transit stop
         distance_miles: Distance in miles to search around transit stop
         city_name: Name of the city to filter parcels by (e.g., 'Berkeley')
+        parcel_city_field: Field name for city filtering (e.g., 'SitusCity')
 
     Returns:
         List of parcel features (GeoJSON), or empty list if none found
     """
     parcel_params = {
-        'where': f"SitusCity='{city_name}'",
+        'where': f"{parcel_city_field}='{city_name}'",
         'geometry': json.dumps(point_to_esri_geometry(stop_geometry)),
         'geometryType': 'esriGeometryPoint',
         'distance': distance_miles,
@@ -156,7 +149,7 @@ def get_parcels_near_transit_stop(parcel_api, stop_geometry, distance_miles, cit
     return fetch_all_paginated(parcel_api, parcel_params, verbose=False)
 
 
-def get_tier1_parcels(parcel_api, transit_stops, city_name):
+def get_tier1_parcels(parcel_api, transit_stops, city_name, parcel_city_field="SitusCity"):
     """
     Get all Tier 1 SB-79 parcels with zone tagging (200ft, quarter_mile, half_mile).
 
@@ -167,6 +160,7 @@ def get_tier1_parcels(parcel_api, transit_stops, city_name):
         parcel_api: URL of the parcel API endpoint
         transit_stops: GeoDataFrame containing transit stop data
         city_name: Name of the city to filter parcels by (e.g., 'Berkeley')
+        parcel_city_field: Field name for city filtering (e.g., 'SitusCity')
 
     Returns:
         GeoDataFrame with all parcels tagged with their tier1_zone, or empty GeoDataFrame if none
@@ -187,7 +181,7 @@ def get_tier1_parcels(parcel_api, transit_stops, city_name):
 
         for i, (_, stop) in enumerate(transit_stops.iterrows()):
             stop_parcels = get_parcels_near_transit_stop(
-                parcel_api, stop.geometry, distance_miles, city_name
+                parcel_api, stop.geometry, distance_miles, city_name, parcel_city_field
             )
             count = len(stop_parcels) if stop_parcels else 0
             print(f"   Stop {i + 1}/{len(transit_stops)}: {count} parcels")
@@ -236,16 +230,20 @@ def get_tier1_parcels(parcel_api, transit_stops, city_name):
 
     return parcels
 
-def get_zoning_districts(city_boundary):
+def get_zoning_districts(city_boundary, zoning_api=None):
     """
-    Fetch all zoning districts within a city boundary from Berkeley's GIS.
+    Fetch all zoning districts within a city boundary.
 
     Args:
         city_boundary: GeoDataFrame containing the city boundary
+        zoning_api: URL of the zoning API endpoint (defaults to BERKELEY_ZONING_API)
 
     Returns:
         GeoDataFrame containing zoning districts, or None if error
     """
+    if zoning_api is None:
+        zoning_api = BERKELEY_ZONING_API
+
     zoning_params = {
         'where': '1=1',
         'geometry': json.dumps(polygon_to_esri_geometry(city_boundary)),
@@ -257,7 +255,7 @@ def get_zoning_districts(city_boundary):
         'f': 'geojson'
     }
 
-    zones_list = fetch_all_paginated(BERKELEY_ZONING_API, zoning_params)
+    zones_list = fetch_all_paginated(zoning_api, zoning_params)
 
     if not zones_list:
         print("No zoning districts found")
@@ -328,7 +326,7 @@ def add_zoning_to_parcels(parcels, zoning_districts):
 
     return joined
 
-def get_southside_plan_boundary():
+def get_southside_plan_boundary(api_url=None):
     """
     Fetch the Southside Plan boundary from Berkeley's GIS.
 
@@ -336,9 +334,15 @@ def get_southside_plan_boundary():
     - Inside Southside: 45ft height limit, 100% lot coverage, 60 du/acre min density
     - Outside Southside: 35ft height limit, 30-45% lot coverage, no min density
 
+    Args:
+        api_url: URL of the Southside Plan API endpoint (defaults to BERKELEY_SOUTHSIDE_PLAN_API)
+
     Returns:
         GeoDataFrame containing the Southside Plan boundary polygon, or None if error
     """
+    if api_url is None:
+        api_url = BERKELEY_SOUTHSIDE_PLAN_API
+
     params = {
         'where': '1=1',
         'outFields': '*',
@@ -347,7 +351,7 @@ def get_southside_plan_boundary():
     }
 
     try:
-        response = requests.post(BERKELEY_SOUTHSIDE_PLAN_API, data=params)
+        response = requests.post(api_url, data=params)
         is_valid, response_json, error_msg = validate_api_response(response)
 
         if not is_valid:
@@ -421,6 +425,24 @@ def reclassify_r3_in_southside(parcels, southside_boundary):
 
     return parcels
 
+def make_southside_overlay(api_url):
+    """
+    Factory that returns an overlay callable for Southside Plan R-3 reclassification.
+
+    Args:
+        api_url: URL of the Southside Plan API endpoint
+
+    Returns:
+        Callable[[GeoDataFrame], GeoDataFrame] that fetches the boundary and reclassifies R-3 → R-3S
+    """
+    def overlay(parcels):
+        southside_boundary = get_southside_plan_boundary(api_url)
+        if southside_boundary is not None:
+            parcels = reclassify_r3_in_southside(parcels, southside_boundary)
+        return parcels
+    return overlay
+
+
 def add_potential_and_net_capacity(parcels):
     """
     Calculate potential unit capacity for each parcel based on tier zone and lot size.
@@ -463,14 +485,17 @@ def add_potential_and_net_capacity(parcels):
     return parcels
 
 
-def load_zoning_limits():
+def load_zoning_limits(zoning_limits_csv=None):
     """
-    Load Berkeley zoning limits from CSV.
+    Load zoning limits from CSV.
+
+    Args:
+        zoning_limits_csv: Path to the zoning limits CSV (defaults to data/zoning_limits.csv)
 
     Returns:
         dict with 'height' and 'max_density' dicts mapping ZONECLASS to values
     """
-    csv_path = Path(__file__).parent / 'data' / 'zoning_limits.csv'
+    csv_path = zoning_limits_csv or Path(__file__).parent / 'data' / 'zoning_limits.csv'
     df = pd.read_csv(csv_path, skipinitialspace=True)
     # Strip whitespace from column names and values
     df.columns = df.columns.str.strip()
@@ -507,12 +532,13 @@ def load_sb79_limits():
     return result
 
 
-def add_zoning_and_sb79_limits(parcels):
+def add_zoning_and_sb79_limits(parcels, zoning_limits_csv=None):
     """
     Add current zoning limits and SB-79 minimums to parcels.
 
     Args:
         parcels: GeoDataFrame with ZONECLASS, tier1_zone, and LotSize columns
+        zoning_limits_csv: Path to the zoning limits CSV (defaults to data/zoning_limits.csv)
 
     Returns:
         GeoDataFrame with CurrentHeightLimit, SB79HeightLimit, and CurrentMaxDensity columns added
@@ -520,7 +546,7 @@ def add_zoning_and_sb79_limits(parcels):
     if parcels is None or len(parcels) == 0:
         return parcels
 
-    zoning_limits = load_zoning_limits()
+    zoning_limits = load_zoning_limits(zoning_limits_csv)
     sb79_limits = load_sb79_limits()
 
     # Add current height limit based on zoning
@@ -654,8 +680,23 @@ def export_geojson(gdf, filename):
     gdf.to_file(str(filepath), driver='GeoJSON')
     print(f"✓ Exported {len(gdf)} features to {filepath}")
 
-def main():
-    city_name = "Berkeley"
+# =============================================================================
+# Berkeley-specific configuration
+# =============================================================================
+
+BERKELEY_CONFIG = CityConfig(
+    name="Berkeley",
+    parcel_api=BERKELEY_PARCEL_API,
+    zoning_api=BERKELEY_ZONING_API,
+    parcel_city_field="SitusCity",
+    parcel_city_value="Berkeley",
+    zone_prefix_filter=("C-", "R-"),
+    overlays=[make_southside_overlay(BERKELEY_SOUTHSIDE_PLAN_API)],
+)
+
+
+def process_city(config: CityConfig):
+    city_name = config.name
 
     if USE_LOCAL_DATA:
         print("\n=== Loading data from local storage ===")
@@ -689,7 +730,7 @@ def main():
 
         # Get transit stops within 0.5mi of city boundary (to capture stops whose radius overlaps the city)
         city_buffered = get_city_boundary(city_name, buffer_miles=0.6)
-        transit_stops = get_transit_stops(city_buffered)
+        transit_stops = get_transit_stops(city_buffered, config.transit_stop_where)
         if transit_stops is None:
             return
         save_layer(transit_stops, city_name, LAYER_TRANSIT_STOPS, HIGH_QUALITY_TRANSIT_STOPS_URL)
@@ -697,30 +738,29 @@ def main():
         print(f"\n✓ Found {len(transit_stops)} transit stops in {city_name}")
 
         # Get zoning districts
-        zoning_districts = get_zoning_districts(city_geojson)
+        zoning_districts = get_zoning_districts(city_geojson, config.zoning_api)
         if zoning_districts is not None:
-            save_layer(zoning_districts, city_name, LAYER_ZONING, BERKELEY_ZONING_API)
+            save_layer(zoning_districts, city_name, LAYER_ZONING, config.zoning_api)
 
-        # Get parcels 
-        tier1_parcels = get_tier1_parcels(BERKELEY_PARCEL_API, transit_stops, city_name)
+        # Get parcels
+        tier1_parcels = get_tier1_parcels(config.parcel_api, transit_stops, config.parcel_city_value, config.parcel_city_field)
         if tier1_parcels is not None:
-            save_layer(tier1_parcels, city_name, LAYER_PARCELS, BERKELEY_PARCEL_API)
+            save_layer(tier1_parcels, city_name, LAYER_PARCELS, config.parcel_api)
 
     print(f"\n✓ Found {len(transit_stops)} transit stops in {city_name}")
 
     tier1_parcels = add_zoning_to_parcels(tier1_parcels, zoning_districts)
 
-    # Reclassify R-3 parcels in Southside Plan area to R-3S
-    southside_boundary = get_southside_plan_boundary()
-    if southside_boundary is not None:
-        tier1_parcels = reclassify_r3_in_southside(tier1_parcels, southside_boundary)
+    # Apply overlays (e.g. Southside Plan reclassification)
+    for overlay in config.overlays:
+        tier1_parcels = overlay(tier1_parcels)
 
     # Filter for residential, commercial, and mixed use parcels
-    tier1_parcels = tier1_parcels[(tier1_parcels["ZONECLASS"].str.startswith(("C-", "R-")) & (tier1_parcels["ZONECLASS"].notna()))]
+    tier1_parcels = tier1_parcels[(tier1_parcels["ZONECLASS"].str.startswith(config.zone_prefix_filter) & (tier1_parcels["ZONECLASS"].notna()))]
 
     tier1_parcels = add_potential_and_net_capacity(tier1_parcels)
 
-    tier1_parcels = add_zoning_and_sb79_limits(tier1_parcels)
+    tier1_parcels = add_zoning_and_sb79_limits(tier1_parcels, config.zoning_limits_csv)
 
     tier1_parcels = filter_zero_lotsize_parcels(tier1_parcels)
 
@@ -798,6 +838,11 @@ def main():
     print("\n✓ All data exported to public/data/")
     print("✓ Run the map by opening public/index.html in your browser")
     print("✓ Or deploy the 'public' directory to Cloudflare Pages or any static host")
-    
+
+
+def main():
+    process_city(BERKELEY_CONFIG)
+
+
 if __name__ == "__main__":
     main()
