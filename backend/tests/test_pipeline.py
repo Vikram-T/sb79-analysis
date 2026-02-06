@@ -2,13 +2,13 @@ import geopandas as gpd
 
 from pipeline import (
     add_potential_and_net_capacity,
-    add_zoning_and_sb79_limits,
+    add_sb79_limits,
     load_sb79_limits,
     filter_zero_lotsize_parcels,
     filter_parcels_with_same_centroid,
     add_zoning_to_parcels,
 )
-from berkeley import load_zoning_limits
+from berkeley import load_zoning_limits, add_zoning_limits
 from config import DENSITY_200FT, DENSITY_QUARTER_MILE, DENSITY_HALF_MILE
 
 
@@ -140,43 +140,57 @@ class TestAddPotentialAndNetCapacity:
 
 
 # =========================================================================
-# add_zoning_and_sb79_limits
+# add_sb79_limits (pipeline — state-level SB-79 minimums)
 # =========================================================================
 
-class TestAddZoningAndSb79Limits:
+class TestAddSb79Limits:
     def test_returns_none_for_none_input(self):
-        assert add_zoning_and_sb79_limits(None, {}) is None
+        assert add_sb79_limits(None) is None
 
     def test_returns_empty_for_empty_gdf(self):
         empty = gpd.GeoDataFrame()
-        result = add_zoning_and_sb79_limits(empty, {})
+        result = add_sb79_limits(empty)
+        assert len(result) == 0
+
+    def test_adds_sb79_height_limit(self, sample_parcels_with_zoning):
+        result = add_sb79_limits(sample_parcels_with_zoning)
+        assert "SB79HeightLimit" in result.columns
+
+    def test_200ft_zone_gets_95ft_sb79_height(self, sample_parcels_with_zoning):
+        result = add_sb79_limits(sample_parcels_with_zoning)
+        zone_200ft = result[result["tier1_zone"] == "200ft"]
+        assert (zone_200ft["SB79HeightLimit"] == 95).all()
+
+
+# =========================================================================
+# add_zoning_limits (berkeley — city-specific zoning limits)
+# =========================================================================
+
+class TestAddZoningLimits:
+    def test_returns_none_for_none_input(self):
+        assert add_zoning_limits(None, {}) is None
+
+    def test_returns_empty_for_empty_gdf(self):
+        empty = gpd.GeoDataFrame()
+        result = add_zoning_limits(empty, {})
         assert len(result) == 0
 
     def test_adds_current_height_limit(self, sample_parcels_with_zoning):
-        result = add_zoning_and_sb79_limits(sample_parcels_with_zoning, load_zoning_limits())
+        result = add_zoning_limits(sample_parcels_with_zoning, load_zoning_limits())
         assert "CurrentHeightLimit" in result.columns
 
-    def test_adds_sb79_height_limit(self, sample_parcels_with_zoning):
-        result = add_zoning_and_sb79_limits(sample_parcels_with_zoning, load_zoning_limits())
-        assert "SB79HeightLimit" in result.columns
-
     def test_adds_current_max_density(self, sample_parcels_with_zoning):
-        result = add_zoning_and_sb79_limits(sample_parcels_with_zoning, load_zoning_limits())
+        result = add_zoning_limits(sample_parcels_with_zoning, load_zoning_limits())
         assert "CurrentMaxDensity" in result.columns
 
     def test_adds_current_zoned_capacity(self, sample_parcels_with_zoning):
-        result = add_zoning_and_sb79_limits(sample_parcels_with_zoning, load_zoning_limits())
+        result = add_zoning_limits(sample_parcels_with_zoning, load_zoning_limits())
         assert "CurrentZonedCapacity" in result.columns
 
     def test_r1_gets_35ft_height(self, sample_parcels_with_zoning):
-        result = add_zoning_and_sb79_limits(sample_parcels_with_zoning, load_zoning_limits())
+        result = add_zoning_limits(sample_parcels_with_zoning, load_zoning_limits())
         r1_rows = result[result["ZONECLASS"] == "R-1"]
         assert (r1_rows["CurrentHeightLimit"] == 35).all()
-
-    def test_200ft_zone_gets_95ft_sb79_height(self, sample_parcels_with_zoning):
-        result = add_zoning_and_sb79_limits(sample_parcels_with_zoning, load_zoning_limits())
-        zone_200ft = result[result["tier1_zone"] == "200ft"]
-        assert (zone_200ft["SB79HeightLimit"] == 95).all()
 
 
 # =========================================================================

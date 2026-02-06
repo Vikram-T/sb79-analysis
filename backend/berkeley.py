@@ -165,6 +165,38 @@ def load_zoning_limits(zoning_limits_csv=None):
     }
 
 
+def add_zoning_limits(parcels, zoning_limits):
+    """
+    Add Berkeley current zoning height, max density, and zoned capacity to parcels.
+
+    Args:
+        parcels: GeoDataFrame with ZONECLASS and LotSize columns
+        zoning_limits: dict with 'height' and 'max_density' dicts mapping ZONECLASS to values
+
+    Returns:
+        GeoDataFrame with CurrentHeightLimit, CurrentMaxDensity, and CurrentZonedCapacity columns added
+    """
+    if parcels is None or len(parcels) == 0:
+        return parcels
+
+    parcels['CurrentHeightLimit'] = parcels['ZONECLASS'].map(zoning_limits['height'])
+    parcels['CurrentMaxDensity'] = parcels['ZONECLASS'].map(zoning_limits['max_density'])
+
+    # Calculate current zoned capacity (max density * lot size in acres)
+    SQFT_PER_ACRE = 43560
+    max_density = parcels['CurrentMaxDensity']
+    lot_acres = parcels['LotSize'].fillna(0) / SQFT_PER_ACRE
+    has_density = max_density.notna() & (max_density != 0)
+    parcels['CurrentZonedCapacity'] = pd.Series(index=parcels.index, dtype=float)
+    parcels.loc[has_density, 'CurrentZonedCapacity'] = lot_acres[has_density] * max_density[has_density]
+
+    has_height = parcels['CurrentHeightLimit'].notna().sum()
+    has_density_count = parcels['CurrentMaxDensity'].notna().sum()
+    print(f"\n✓ Added zoning limits: {has_height}/{len(parcels)} have height, {has_density_count}/{len(parcels)} have max density")
+
+    return parcels
+
+
 # =============================================================================
 # Berkeley-specific configuration
 # =============================================================================
@@ -184,8 +216,9 @@ def main():
     data = gather_city_data(BERKELEY_CONFIG)
     if data is None:
         return
+    parcels = process_city_data(BERKELEY_CONFIG, data)
     zoning_limits = load_zoning_limits(BERKELEY_CONFIG.zoning_limits_csv)
-    parcels = process_city_data(BERKELEY_CONFIG, data, zoning_limits)
+    parcels = add_zoning_limits(parcels, zoning_limits)
     export_city_results(BERKELEY_CONFIG.name, data, parcels)
 
 

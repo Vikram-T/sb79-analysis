@@ -397,47 +397,24 @@ def load_sb79_limits():
     return result
 
 
-def add_zoning_and_sb79_limits(parcels, zoning_limits):
+def add_sb79_limits(parcels):
     """
-    Add current zoning limits and SB-79 minimums to parcels.
+    Add SB-79 minimum height limits to parcels based on their tier zone.
 
     Args:
-        parcels: GeoDataFrame with ZONECLASS, tier1_zone, and LotSize columns
-        zoning_limits: dict with 'height' and 'max_density' dicts mapping ZONECLASS to values
+        parcels: GeoDataFrame with tier1_zone column
 
     Returns:
-        GeoDataFrame with CurrentHeightLimit, SB79HeightLimit, and CurrentMaxDensity columns added
+        GeoDataFrame with SB79HeightLimit column added
     """
     if parcels is None or len(parcels) == 0:
         return parcels
 
     sb79_limits = load_sb79_limits()
-
-    # Add current height limit based on zoning
-    parcels['CurrentHeightLimit'] = parcels['ZONECLASS'].map(zoning_limits['height'])
-
-    # Add SB-79 minimum height based on tier zone
     parcels['SB79HeightLimit'] = parcels['tier1_zone'].map(sb79_limits)
 
-    # Add current max density based on zoning
-    parcels['CurrentMaxDensity'] = parcels['ZONECLASS'].map(zoning_limits['max_density'])
-
-    # Calculate current zoned capacity (max density * lot size in acres)
-    # Only for parcels that have a max density limit
-    SQFT_PER_ACRE = 43560
-
-    # Vectorized: where max density exists and is non-zero, compute capacity
-    max_density = parcels['CurrentMaxDensity']
-    lot_acres = parcels['LotSize'].fillna(0) / SQFT_PER_ACRE
-    has_density = max_density.notna() & (max_density != 0)
-    parcels['CurrentZonedCapacity'] = pd.Series(index=parcels.index, dtype=float)
-    parcels.loc[has_density, 'CurrentZonedCapacity'] = lot_acres[has_density] * max_density[has_density]
-
-    # Report stats
-    has_height = parcels['CurrentHeightLimit'].notna().sum()
-    has_density = parcels['CurrentMaxDensity'].notna().sum()
     has_sb79 = parcels['SB79HeightLimit'].notna().sum()
-    print(f"\n✓ Added zoning limits: {has_height}/{len(parcels)} have height, {has_density}/{len(parcels)} have max density, {has_sb79}/{len(parcels)} have SB-79 height")
+    print(f"\n✓ Added SB-79 limits: {has_sb79}/{len(parcels)} parcels have SB-79 height")
 
     return parcels
 
@@ -615,17 +592,17 @@ def gather_city_data(config: CityConfig) -> CityData | None:
     )
 
 
-def process_city_data(config: CityConfig, data: CityData, zoning_limits: dict) -> gpd.GeoDataFrame:
+def process_city_data(config: CityConfig, data: CityData) -> gpd.GeoDataFrame:
     """
     Transform raw city data into processed SB-79 parcels.
 
     Applies zoning join, overlays, zone prefix filter, capacity calculations,
-    zoning/SB-79 limits, and filters.
+    SB-79 limits, and filters. City-specific zoning limits should be applied
+    separately by the caller.
 
     Args:
         config: CityConfig for the target city
         data: CityData containing raw GeoDataFrames
-        zoning_limits: dict with 'height' and 'max_density' dicts mapping ZONECLASS to values
 
     Returns:
         Processed parcels GeoDataFrame
@@ -643,7 +620,7 @@ def process_city_data(config: CityConfig, data: CityData, zoning_limits: dict) -
 
     parcels = add_potential_and_net_capacity(parcels)
 
-    parcels = add_zoning_and_sb79_limits(parcels, zoning_limits)
+    parcels = add_sb79_limits(parcels)
 
     parcels = filter_zero_lotsize_parcels(parcels)
 
