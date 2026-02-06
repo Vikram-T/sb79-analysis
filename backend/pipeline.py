@@ -239,6 +239,9 @@ def get_zoning_districts(city_boundary, zoning_api):
     """
     Fetch all zoning districts within a city boundary.
 
+    WARNING: Hardcodes outFields ('OBJECTID', 'ZONECLASS', 'ZONEDESC').
+    Other cities may use different field names for zoning data.
+
     Args:
         city_boundary: GeoDataFrame containing the city boundary
         zoning_api: URL of the zoning API endpoint
@@ -271,6 +274,9 @@ def get_zoning_districts(city_boundary, zoning_api):
 def add_zoning_to_parcels(parcels, zoning_districts):
     """
     Add zoning information to parcels using spatial join.
+
+    WARNING: Assumes Berkeley field names ('APN', 'SitusAddress', 'ZONECLASS', 'ZONEDESC').
+    Other cities may use different field names for parcel ID, address, and zoning.
 
     Args:
         parcels: GeoDataFrame containing parcel data
@@ -333,6 +339,9 @@ def add_potential_and_net_capacity(parcels):
     Calculate potential unit capacity for each parcel based on tier zone and lot size.
     Use this to then calculate the net capacity which is Potential - Existing.
     This number cannot be negative though and will default to 0
+
+    WARNING: Assumes Berkeley parcel schema ('LotSize', 'Units' columns).
+    Other cities may use different field names for lot area and existing units.
 
     Args:
         parcels: GeoDataFrame containing parcel data with 'tier1_zone' and 'LotSize' columns
@@ -423,6 +432,9 @@ def filter_zero_lotsize_parcels(parcels):
     """
     Filter out parcels with LotSize = 0.
 
+    WARNING: Assumes Berkeley parcel schema ('LotSize' column).
+    Other cities may use a different field name for lot area.
+
     Args:
         parcels: GeoDataFrame containing parcel data with 'LotSize' column
 
@@ -444,6 +456,9 @@ def filter_zero_lotsize_parcels(parcels):
 def filter_parcels_with_same_centroid(parcels):
     """
     Find parcels that share the same centroid coordinates and filter out those with BLDSQFTTAXABLE > 0.
+
+    WARNING: Assumes Berkeley parcel schema ('BLDSQFTTAXABLE' column).
+    Other cities may use a different field name for building square footage.
 
     Args:
         parcels: GeoDataFrame containing parcel data
@@ -632,6 +647,9 @@ def process_city_data(config: CityConfig, data: CityData) -> gpd.GeoDataFrame:
 def export_city_results(city_name: str, data: CityData, parcels: gpd.GeoDataFrame):
     """
     Print stats summary and export GeoJSON files and map metadata.
+
+    WARNING: Assumes Berkeley parcel schema ('Units', 'NetIncreaseCapacity' columns).
+    Other cities may use different field names for existing units and capacity.
 
     Args:
         city_name: Name of the city
