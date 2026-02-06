@@ -54,7 +54,7 @@
     }
 
     .reveal h1 { font-size: 1.8em; font-weight: 700; }
-    .reveal h2 { font-size: 1.25em; font-weight: 700; margin-bottom: 0.3em; }
+    .reveal h2 { font-size: 1.25em; font-weight: 700; margin-top: 0.1em; margin-bottom: 0.2em; }
     .reveal h3 { font-size: 0.7em; font-weight: 700; }
 
     .reveal p, .reveal li {
@@ -75,9 +75,9 @@
       content: '';
       position: absolute;
       left: 0;
-      top: 0.55em;
-      width: 5px;
-      height: 5px;
+      top: 0.65em;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
       background: var(--accent);
     }
@@ -99,7 +99,7 @@
       font-size: 0.45em;
       letter-spacing: 0.1em;
       color: var(--accent);
-      margin-bottom: 0.3em;
+      margin-bottom: 0;
       display: block;
     }
 
@@ -183,18 +183,19 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 1em;
-      margin: 0.5em 0;
-      min-height: 200px;
+      padding: 0.3em;
+      margin: 0.3em 0;
       color: var(--text-muted);
       font-size: 0.5em;
       text-align: center;
       box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      overflow: hidden;
     }
     .img-placeholder img {
       max-width: 100%;
-      max-height: 300px;
+      max-height: 320px;
       border-radius: 6px;
+      object-fit: contain;
     }
 
     /* ---- Big stat cards (colored backgrounds) ---- */
@@ -423,19 +424,20 @@
     }
 
     /* ---- Agenda ---- */
-    .agenda-list { counter-reset: agenda; padding-left: 0; }
-    .agenda-list li {
+    .reveal .agenda-list { counter-reset: agenda; padding-left: 0; }
+    .reveal .agenda-list li {
       counter-increment: agenda;
       padding-left: 2em;
       margin-bottom: 0.5em;
       font-size: 0.75em;
       font-weight: 400;
     }
-    .agenda-list li::before {
+    .reveal .agenda-list li::before {
       content: counter(agenda);
       position: absolute;
       left: 0;
-      top: 0.05em;
+      top: 50%;
+      transform: translateY(-50%);
       width: 1.4em;
       height: 1.4em;
       background: var(--accent);
@@ -597,11 +599,8 @@
         <span class="step-label">Phase 1</span>
         <h2>City Boundary</h2>
         <p>We're using <strong>Berkeley</strong> as our first example. The city boundary comes from the California State Geoportal.</p>
-        <div class="img-placeholder" style="min-height: 160px;">
-          <div>
-            <div style="font-size: 1.2em; margin-bottom: 0.3em;">Screenshot: City Boundary</div>
-            <div>Place image at <code>images/step-1-boundary.png</code></div>
-          </div>
+        <div class="img-placeholder">
+          <img src="images/boundary.png" alt="Berkeley city boundary map">
         </div>
         <p class="source">Data: California State Geoportal — CDTFA City Boundaries</p>
         <aside class="notes">
@@ -619,15 +618,12 @@
           After getting the city boundary, we map the qualifying transit stops.
           SB-79 defines Tier 1 and Tier 2 stops — Berkeley only has <strong>Tier 1</strong> stops (BART stations).
         </p>
-        <div class="img-placeholder" style="min-height: 140px;">
-          <div>
-            <div style="font-size: 1.2em; margin-bottom: 0.3em;">Screenshot: Transit Stops</div>
-            <div>Place image at <code>images/step-2-transit.png</code></div>
-          </div>
+        <div class="img-placeholder">
+          <img src="images/transit.png" alt="Berkeley transit stops map">
         </div>
         <div class="stat-badge-row">
           <div class="stat-badge">
-            <div class="number" style="color: var(--accent);">8</div>
+            <div class="number" style="color: var(--accent);" data-stat="transit_stops">8</div>
             <div class="label">Tier 1 BART Stations</div>
           </div>
         </div>
@@ -647,23 +643,20 @@
         <p>
           Next we calculate which parcels fall in each distance tier. The innermost zone takes priority.
         </p>
-        <div class="img-placeholder" style="min-height: 120px;">
-          <div>
-            <div style="font-size: 1.2em; margin-bottom: 0.3em;">Screenshot: Zone Rings</div>
-            <div>Place image at <code>images/step-3-zones.png</code></div>
-          </div>
+        <div class="img-placeholder">
+          <img src="images/parcels.png" alt="Berkeley zone rings map">
         </div>
         <div class="stat-badge-row">
           <div class="stat-badge">
-            <div class="number" style="color: var(--accent);">22</div>
+            <div class="number" style="color: var(--accent);" data-stat="parcels_200ft">22</div>
             <div class="label">200ft</div>
           </div>
           <div class="stat-badge">
-            <div class="number" style="color: var(--blue);">1,601</div>
+            <div class="number" style="color: var(--blue);" data-stat="parcels_quarter_mile">1,601</div>
             <div class="label">Quarter Mile</div>
           </div>
           <div class="stat-badge">
-            <div class="number" style="color: var(--green);">4,821</div>
+            <div class="number" style="color: var(--green);" data-stat="parcels_half_mile">4,821</div>
             <div class="label">Half Mile</div>
           </div>
         </div>
@@ -678,14 +671,8 @@
       <section>
         <span class="step-label">Crucial Nuance</span>
         <h2>Calculating Capacity</h2>
-        <div class="callout">
-          <p style="font-size: 0.7em; color: var(--text); font-family: var(--serif); font-style: italic;">
-            After this it should be pretty simple, right? We just add up the upzoned capacity?
-          </p>
-        </div>
         <p>
-          Not quite. SB-79 includes a clause that incentivizes development on
-          <strong>undeveloped land</strong>. The capacity increase depends on what already exists on each parcel.
+          After this it should be pretty simple, right? We just add up the upzoned capacity?
         </p>
         <table class="tier-table">
           <thead>
@@ -713,6 +700,17 @@
             </tr>
           </tbody>
         </table>
+        <div class="fragment">
+          <div class="callout">
+            <p style="font-size: 0.6em; color: var(--text); font-family: var(--serif); font-style: italic;">
+              Not quite.
+            </p>
+          </div>
+          <p>
+            SB-79 includes a clause that incentivizes development on
+            <strong>undeveloped land</strong>. The capacity increase depends on what already exists on each parcel.
+          </p>
+        </div>
         <aside class="notes">
           The density numbers look straightforward, but there's a catch. SB-79
           says the net increase is the SB-79 capacity minus existing units. So a
@@ -784,16 +782,12 @@
         <p style="font-size: 0.55em;">Using all this information, we get a baseline for what SB-79 adds:</p>
         <div class="stat-row">
           <div class="stat-card bg-blue">
-            <div class="number">6,444</div>
+            <div class="number" data-stat="total_parcels">6,444</div>
             <div class="label">Parcels Affected</div>
           </div>
           <div class="stat-card bg-accent">
-            <div class="number">+83,927</div>
+            <div class="number" data-stat="net_increase_capacity" data-prefix="+">+83,927</div>
             <div class="label">Net New Capacity</div>
-          </div>
-          <div class="stat-card bg-green">
-            <div class="number">20,924</div>
-            <div class="label">Existing Units</div>
           </div>
         </div>
         <table class="tier-table" style="margin-top: 0.6em;">
@@ -801,28 +795,24 @@
             <tr>
               <th>Zone</th>
               <th>Parcels</th>
-              <th>Existing Units</th>
               <th>Net New Capacity</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td><span class="zone-dot red"></span>200 ft</td>
-              <td>22</td>
-              <td>121</td>
-              <td>+3,156</td>
+              <td data-stat="parcels_200ft">22</td>
+              <td data-stat="net_increase_capacity_200ft" data-prefix="+">+3,156</td>
             </tr>
             <tr>
               <td><span class="zone-dot blue"></span>Quarter Mile</td>
-              <td>1,601</td>
-              <td>6,012</td>
-              <td>+24,548</td>
+              <td data-stat="parcels_quarter_mile">1,601</td>
+              <td data-stat="net_increase_capacity_quarter" data-prefix="+">+24,548</td>
             </tr>
             <tr>
               <td><span class="zone-dot green"></span>Half Mile</td>
-              <td>4,821</td>
-              <td>14,791</td>
-              <td>+56,223</td>
+              <td data-stat="parcels_half_mile">4,821</td>
+              <td data-stat="net_increase_capacity_half" data-prefix="+">+56,223</td>
             </tr>
           </tbody>
         </table>
@@ -910,6 +900,25 @@
       center: false,
       plugins: [ RevealNotes ],
     });
+
+    // Load stats from data/stats.json and populate elements with data-stat attributes
+    fetch('data/stats.json')
+      .then(r => r.json())
+      .then(data => {
+        const stats = data.stats;
+        // Compute total_parcels (sum of all three tiers)
+        stats.total_parcels = stats.parcels_200ft + stats.parcels_quarter_mile + stats.parcels_half_mile;
+
+        document.querySelectorAll('[data-stat]').forEach(el => {
+          const key = el.dataset.stat;
+          if (stats[key] !== undefined) {
+            const val = Math.round(Number(stats[key]));
+            const prefix = el.dataset.prefix || '';
+            el.textContent = prefix + val.toLocaleString();
+          }
+        });
+      })
+      .catch(() => { /* stats.json not available, keep hardcoded fallbacks */ });
   </script>
 </body>
 </html>
