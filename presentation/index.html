@@ -15,8 +15,8 @@
       --text-light: #555;
       --text-muted: #888;
       --accent: #ff4b3e;
+      --purple: #7b2d8e;
       --blue: #4e79a7;
-      --green: #59a14f;
       --border: #e8e4dc;
       --card-bg: #ffffff;
       --serif: 'Lora', Georgia, serif;
@@ -227,8 +227,8 @@
       margin-top: 0.25em;
     }
     .stat-card.bg-accent { background: var(--accent); }
+    .stat-card.bg-purple { background: var(--purple); }
     .stat-card.bg-blue { background: var(--blue); }
-    .stat-card.bg-green { background: var(--green); }
 
     /* ---- Small stat badges (white bg) ---- */
     .stat-badge-row {
@@ -293,8 +293,8 @@
       vertical-align: middle;
     }
     .zone-dot.red { background: var(--accent); }
+    .zone-dot.purple { background: var(--purple); }
     .zone-dot.blue { background: var(--blue); }
-    .zone-dot.green { background: var(--green); }
 
     /* ---- Capacity comparison diagram ---- */
     .capacity-compare {
@@ -361,8 +361,9 @@
       font-size: 0.58em;
       font-weight: 700;
     }
-    .calc-result.green { color: var(--green); }
+    .calc-result.green { color: var(--blue); }
     .calc-result.blue { color: var(--blue); }
+    .calc-result.purple { color: var(--purple); }
 
     .formula-box {
       border-left: 4px solid var(--accent);
@@ -624,7 +625,7 @@
         <div class="stat-badge-row">
           <div class="stat-badge">
             <div class="number" style="color: var(--accent);" data-stat="transit_stops">8</div>
-            <div class="label">Tier 1 BART Stations</div>
+            <div class="label">Tier 1 BART Stations (2 per station)</div>
           </div>
         </div>
         <p class="source">Data: Caltrans High Quality Transit Stops</p>
@@ -641,7 +642,7 @@
         <span class="step-label">Phase 3</span>
         <h2>Zone Rings</h2>
         <p>
-          Next we calculate which parcels fall in each distance tier. The innermost zone takes priority.
+          Next we calculate which parcels fall in each distance tier.
         </p>
         <div class="img-placeholder">
           <img src="images/parcels.png" alt="Berkeley zone rings map">
@@ -652,11 +653,11 @@
             <div class="label">200ft</div>
           </div>
           <div class="stat-badge">
-            <div class="number" style="color: var(--blue);" data-stat="parcels_quarter_mile">1,601</div>
+            <div class="number" style="color: var(--purple);" data-stat="parcels_quarter_mile">1,601</div>
             <div class="label">Quarter Mile</div>
           </div>
           <div class="stat-badge">
-            <div class="number" style="color: var(--green);" data-stat="parcels_half_mile">4,821</div>
+            <div class="number" style="color: var(--blue);" data-stat="parcels_half_mile">4,821</div>
             <div class="label">Half Mile</div>
           </div>
         </div>
@@ -689,12 +690,12 @@
               <td>160 dwelling units / acre</td>
             </tr>
             <tr>
-              <td><span class="zone-dot blue"></span>Quarter Mile</td>
+              <td><span class="zone-dot purple"></span>Quarter Mile</td>
               <td>200 ft – 0.25 miles</td>
               <td>120 dwelling units / acre</td>
             </tr>
             <tr>
-              <td><span class="zone-dot green"></span>Half Mile</td>
+              <td><span class="zone-dot blue"></span>Half Mile</td>
               <td>0.25 – 0.5 miles</td>
               <td>100 dwelling units / acre</td>
             </tr>
@@ -805,12 +806,12 @@
               <td data-stat="net_increase_capacity_200ft" data-prefix="+">+3,156</td>
             </tr>
             <tr>
-              <td><span class="zone-dot blue"></span>Quarter Mile</td>
+              <td><span class="zone-dot purple"></span>Quarter Mile</td>
               <td data-stat="parcels_quarter_mile">1,601</td>
               <td data-stat="net_increase_capacity_quarter" data-prefix="+">+24,548</td>
             </tr>
             <tr>
-              <td><span class="zone-dot green"></span>Half Mile</td>
+              <td><span class="zone-dot blue"></span>Half Mile</td>
               <td data-stat="parcels_half_mile">4,821</td>
               <td data-stat="net_increase_capacity_half" data-prefix="+">+56,223</td>
             </tr>
