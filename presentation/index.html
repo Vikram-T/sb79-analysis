@@ -1,0 +1,915 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SB-79 Housing Analysis: Berkeley</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f9f7f1;
+      --text: #282828;
+      --text-light: #555;
+      --text-muted: #888;
+      --accent: #ff4b3e;
+      --blue: #4e79a7;
+      --green: #59a14f;
+      --border: #e8e4dc;
+      --card-bg: #ffffff;
+      --serif: 'Lora', Georgia, serif;
+      --sans: 'Inter', -apple-system, sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      margin: 0;
+    }
+
+    .reveal {
+      font-family: var(--sans);
+      font-size: 32px;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    .reveal .slides { text-align: left; }
+    .reveal .slides section {
+      padding: 24px 40px;
+      box-sizing: border-box;
+    }
+    .reveal .slides section.present {
+      overflow-y: auto;
+      pointer-events: auto;
+    }
+
+    .reveal h1, .reveal h2, .reveal h3 {
+      font-family: var(--serif);
+      color: var(--text);
+      text-transform: none;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+    }
+
+    .reveal h1 { font-size: 1.8em; font-weight: 700; }
+    .reveal h2 { font-size: 1.25em; font-weight: 700; margin-bottom: 0.3em; }
+    .reveal h3 { font-size: 0.7em; font-weight: 700; }
+
+    .reveal p, .reveal li {
+      font-family: var(--sans);
+      font-size: 0.5em;
+      line-height: 1.55;
+      color: var(--text-light);
+    }
+    .reveal p { margin: 0.25em 0; }
+
+    .reveal ul { list-style: none; padding-left: 0; margin: 0.3em 0; }
+    .reveal ul li {
+      padding-left: 1.2em;
+      position: relative;
+      margin-bottom: 0.3em;
+    }
+    .reveal ul li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.55em;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .reveal a { color: var(--blue); text-decoration: underline; }
+    .reveal .progress { color: var(--accent); }
+    .reveal .controls { color: var(--accent); }
+    .reveal .slide-number {
+      font-family: var(--sans);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* ---- Step label (small red uppercase) ---- */
+    .step-label {
+      font-family: var(--sans);
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 0.45em;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      margin-bottom: 0.3em;
+      display: block;
+    }
+
+    /* ---- Callout (pudding-style left border) ---- */
+    .callout {
+      border-left: 4px solid var(--accent);
+      padding: 0.5em 0.8em;
+      margin: 0.5em 0;
+      background: rgba(255, 75, 62, 0.04);
+      border-radius: 0 4px 4px 0;
+    }
+    .callout p { margin: 0; }
+
+    /* ---- Title slide ---- */
+    .title-slide {
+      text-align: center !important;
+      display: flex !important;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .title-slide h1 { font-size: 2.8em; margin-bottom: 0.15em; }
+    .title-subtitle {
+      font-family: var(--sans);
+      font-size: 0.8em;
+      color: var(--text-light);
+      font-weight: 300;
+      margin-bottom: 1.5em;
+    }
+    .title-meta {
+      display: flex;
+      gap: 2em;
+      font-size: 0.45em;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+    }
+    .title-meta span:not(:first-child) {
+      padding-left: 2em;
+      border-left: 1px solid var(--border);
+    }
+
+    /* ---- Section header ---- */
+    .section-header {
+      text-align: center !important;
+      display: flex !important;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .section-header h2 { font-size: 2.2em; margin-bottom: 0.3em; }
+    .section-header p {
+      text-align: center;
+      font-size: 0.7em;
+      max-width: 550px;
+    }
+
+    /* ---- Two-column grid ---- */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2em;
+      align-items: start;
+    }
+
+    /* ---- White card ---- */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1em 1.2em;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .card h3 { margin: 0 0 0.3em; font-size: 0.75em; }
+
+    /* ---- Image placeholder ---- */
+    .img-placeholder {
+      background: var(--card-bg);
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1em;
+      margin: 0.5em 0;
+      min-height: 200px;
+      color: var(--text-muted);
+      font-size: 0.5em;
+      text-align: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .img-placeholder img {
+      max-width: 100%;
+      max-height: 300px;
+      border-radius: 6px;
+    }
+
+    /* ---- Big stat cards (colored backgrounds) ---- */
+    .stat-row {
+      display: flex;
+      gap: 1em;
+      margin: 0.5em 0;
+    }
+    .stat-card {
+      flex: 1;
+      color: white;
+      padding: 0.6em 0.8em;
+      border-radius: 6px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .stat-card .number {
+      font-family: var(--serif);
+      font-size: 1.8em;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .stat-card .label {
+      font-size: 0.4em;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      opacity: 0.8;
+      margin-top: 0.25em;
+    }
+    .stat-card.bg-accent { background: var(--accent); }
+    .stat-card.bg-blue { background: var(--blue); }
+    .stat-card.bg-green { background: var(--green); }
+
+    /* ---- Small stat badges (white bg) ---- */
+    .stat-badge-row {
+      display: flex;
+      gap: 0.8em;
+      margin: 0.5em 0;
+    }
+    .stat-badge {
+      flex: 1;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.4em 0.6em;
+      text-align: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .stat-badge .number {
+      font-family: var(--serif);
+      font-size: 1.3em;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .stat-badge .label {
+      font-size: 0.38em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-top: 0.15em;
+    }
+
+    /* ---- Tier table ---- */
+    .tier-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.55em;
+      margin: 0.4em 0;
+    }
+    .tier-table th {
+      font-family: var(--sans);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 0.8em;
+      color: var(--text-muted);
+      padding: 0.5em 0.6em;
+      border-bottom: 2px solid var(--text);
+      text-align: left;
+    }
+    .tier-table td {
+      padding: 0.45em 0.6em;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    /* ---- Zone dots ---- */
+    .zone-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 0.3em;
+      vertical-align: middle;
+    }
+    .zone-dot.red { background: var(--accent); }
+    .zone-dot.blue { background: var(--blue); }
+    .zone-dot.green { background: var(--green); }
+
+    /* ---- Capacity comparison diagram ---- */
+    .capacity-compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1em;
+      margin: 0.5em 0;
+    }
+    .parcel-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .parcel-card-header {
+      padding: 0.4em 0.8em;
+      font-weight: 700;
+      font-size: 0.55em;
+      color: white;
+      background: var(--blue);
+    }
+    .parcel-card-header.accent { background: var(--accent); }
+    .parcel-card-visual {
+      height: 70px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.5em;
+      color: var(--text-muted);
+    }
+    .parcel-card-visual.lot {
+      background: repeating-linear-gradient(
+        45deg, #e8e4dc, #e8e4dc 8px, #d8d4cc 8px, #d8d4cc 16px
+      );
+    }
+    .parcel-card-visual.building {
+      background: linear-gradient(135deg, #7a6b55 0%, #5d4e3b 100%);
+    }
+    .building-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .building-row { display: flex; gap: 2px; }
+    .window {
+      width: 8px; height: 6px;
+      background: rgba(255, 220, 120, 0.7);
+      border-radius: 1px;
+    }
+    .parcel-card-body { padding: 0.5em 0.7em; }
+    .calc-line {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.12em 0;
+      font-size: 0.5em;
+      color: var(--text-light);
+      border-bottom: 1px solid #f5f3ee;
+    }
+    .calc-result {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.3em 0 0.1em;
+      font-size: 0.58em;
+      font-weight: 700;
+    }
+    .calc-result.green { color: var(--green); }
+    .calc-result.blue { color: var(--blue); }
+
+    .formula-box {
+      border-left: 4px solid var(--accent);
+      background: rgba(255,75,62,0.04);
+      padding: 0.4em 0.8em;
+      margin: 0.4em 0;
+      border-radius: 0 4px 4px 0;
+      font-family: 'Courier New', monospace;
+      font-size: 0.5em;
+      color: var(--text);
+    }
+
+    /* ---- Compliance diagram ---- */
+    .compliance-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.8em;
+      margin: 0.8em 0;
+    }
+    .compliance-box {
+      background: var(--card-bg);
+      border: 2px solid var(--border);
+      border-radius: 50%;
+      width: 120px;
+      height: 120px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 0.55em;
+      font-weight: 700;
+      color: var(--text);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .compliance-box.local { color: var(--blue); border-color: var(--blue); }
+    .compliance-box.sb79 { color: var(--accent); border-color: var(--accent); }
+    .compliance-eq {
+      font-family: var(--serif);
+      font-size: 1.8em;
+      color: var(--text-muted);
+      font-weight: 300;
+    }
+    .compliance-note {
+      text-align: center;
+      font-size: 0.45em;
+      color: var(--text-muted);
+      font-style: italic;
+      margin-top: 0.3em;
+    }
+
+    /* ---- Source footnote ---- */
+    .source {
+      font-size: 0.38em;
+      color: var(--text-muted);
+      margin-top: 0.5em;
+      font-style: italic;
+    }
+
+    /* ---- Agenda ---- */
+    .agenda-list { counter-reset: agenda; padding-left: 0; }
+    .agenda-list li {
+      counter-increment: agenda;
+      padding-left: 2em;
+      margin-bottom: 0.5em;
+      font-size: 0.75em;
+      font-weight: 400;
+    }
+    .agenda-list li::before {
+      content: counter(agenda);
+      position: absolute;
+      left: 0;
+      top: 0.05em;
+      width: 1.4em;
+      height: 1.4em;
+      background: var(--accent);
+      color: white;
+      border-radius: 50%;
+      font-size: 0.6em;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ---- Help wanted box ---- */
+    .help-box {
+      background: var(--bg);
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 0.7em 1em;
+    }
+    .help-box h3 {
+      font-family: var(--sans);
+      font-size: 0.45em;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin: 0 0 0.5em;
+    }
+    .help-box li::before { background: var(--blue) !important; }
+
+    /* ---- Thank you links ---- */
+    .link-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1em;
+      max-width: 600px;
+      margin: 1em auto;
+    }
+    .link-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.8em 1em;
+      text-align: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      text-decoration: none;
+      color: inherit;
+      transition: box-shadow 0.2s;
+    }
+    .link-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-decoration: none; }
+    .link-card .link-label {
+      font-size: 0.4em;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.3em;
+    }
+    .link-card .link-title {
+      font-family: var(--serif);
+      font-size: 0.65em;
+    }
+
+    /* ---- Accent bar ---- */
+    .accent-bar {
+      width: 60px;
+      height: 3px;
+      background: var(--accent);
+      margin: 0.5em 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- ========== SLIDE 1: Title ========== -->
+      <section class="title-slide">
+        <span class="step-label">Policy Analysis Tool</span>
+        <h1>SB-79 Analysis</h1>
+        <div class="title-subtitle">Quantifying Housing Capacity in Berkeley, California</div>
+        <div class="title-meta">
+          <span>Vikram T.</span>
+          <span>Berkeley, CA</span>
+        </div>
+        <aside class="notes">
+          Welcome. This presentation covers our tool for calculating the housing
+          capacity that SB-79 adds in Berkeley — and eventually other California cities.
+        </aside>
+      </section>
+
+      <!-- ========== SLIDE 2: Agenda ========== -->
+      <section>
+        <span class="step-label">Today's Roadmap</span>
+        <h2>Agenda</h2>
+        <ul class="agenda-list">
+          <li>Motivation</li>
+          <li>How we built it step by step</li>
+          <li>Net capacity calculations</li>
+          <li>Results</li>
+          <li>Next steps &amp; help needed</li>
+        </ul>
+        <aside class="notes">
+          Quick overview of the talk. We'll start with why this matters, then
+          walk through building the map layer by layer, explain the capacity math,
+          show Berkeley results, and end with what we need help on.
+        </aside>
+      </section>
+
+      <!-- ========== SLIDE 3: Motivation ========== -->
+      <section>
+        <div class="grid-2" style="align-items: center;">
+          <div>
+            <span class="step-label">Section 1: Motivation</span>
+            <h2 style="margin-bottom: 0.3em;">Why did we build this?</h2>
+            <div class="callout">
+              <p style="font-size: 0.7em; color: var(--text);">
+                How much housing capacity does SB-79 actually add?
+              </p>
+            </div>
+            <ul>
+              <li>If cities want to create their own local plan, they must <strong>match the capacity</strong> that SB-79 would grant</li>
+              <li>This helps cities determine whether they are in compliance</li>
+            </ul>
+          </div>
+          <div>
+            <div class="card" style="text-align: center; padding: 1.2em;">
+              <div style="font-size: 0.4em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 0.8em;">Compliance Equation</div>
+              <div class="compliance-row" style="margin: 0.5em 0;">
+                <div class="compliance-box local">LOCAL<br><span style="font-weight: 400; font-size: 0.8em;">Capacity</span></div>
+                <div class="compliance-eq">&ge;</div>
+                <div class="compliance-box sb79">SB-79<br><span style="font-weight: 400; font-size: 0.8em;">Capacity</span></div>
+              </div>
+              <div class="compliance-note">If Local &lt; SB-79, the city is not in compliance.</div>
+            </div>
+          </div>
+        </div>
+        <aside class="notes">
+          SB-79 lets cities opt out by adopting a local plan — but that plan must
+          provide at least as much housing capacity as SB-79 would. So to even
+          start that conversation, you need to know the SB-79 baseline. That's
+          what this tool calculates.
+        </aside>
+      </section>
+
+      <!-- ========== SLIDE 4: How We Built It — section header ========== -->
+      <section class="section-header">
+        <span class="step-label">Process</span>
+        <h2>How We Built It</h2>
+        <p>To calculate capacity, we first need to know: which parcels get upzoned?</p>
+        <aside class="notes">
+          Now let's walk through the pipeline step by step. Each step builds
+          on the last — by the end we'll have every affected parcel tagged
+          with its zone tier and capacity numbers.
+        </aside>
+      </section>
+
+      <!-- ========== SLIDE 5: Step 1 — City Boundary ========== -->
+      <section>
+        <span class="step-label">Phase 1</span>
+        <h2>City Boundary</h2>
+        <p>We're using <strong>Berkeley</strong> as our first example. The city boundary comes from the California State Geoportal.</p>
+        <div class="img-placeholder" style="min-height: 160px;">
+          <div>
+            <div style="font-size: 1.2em; margin-bottom: 0.3em;">Screenshot: City Boundary</div>
+            <div>Place image at <code>images/step-1-boundary.png</code></div>
+          </div>
+        </div>
+        <p class="source">Data: California State Geoportal — CDTFA City Boundaries</p>
+        <aside class="notes">
+          We fetch the official boundary from the California State Geoportal
+          using the CDTFA city name. This gives us the polygon we use to
+          clip everything else.
+        </aside>
+      </section>
+
+      <!-- ========== SLIDE 6: Step 2 — Transit Stops ========== -->
+      <section>
+        <span class="step-label">Phase 2</span>
+        <h2>Transit Stops</h2>
+        <p>
+          After getting the city boundary, we map the qualifying transit stops.
+          SB-79 defines Tier 1 and Tier 2 stops — Berkeley only has <strong>Tier 1</strong> stops (BART stations).
+        </p>
+        <div class="img-placeholder" style="min-height: 140px;">
+          <div>
+            <div style="font-size: 1.2em; margin-bottom: 0.3em;">Screenshot: Transit Stops</div>
+            <div>Place image at <code>images/step-2-transit.png</code></div>
+          </div>
+        </div>
+        <div class="stat-badge-row">
+          <div class="stat-badge">
+            <div class="number" style="color: var(--accent);">8</div>
+            <div class="label">Tier 1 BART Stations</div>
+          </div>
+        </div>
+        <p class="source">Data: Caltrans High Quality Transit Stops</p>
+        <aside class="notes">
+          We query Caltrans' transit stop database, filtering for major rail
+          stops and excluding Amtrak and Capitol Corridor per the bill's
+          definitions. We also buffer the city boundary by 0.6 miles to catch
+          stops just outside the border whose zone rings overlap into the city.
+        </aside>
+      </section>
+
+      <!-- ========== SLIDE 7: Step 3 — Zone Rings ========== -->
+      <section>
+        <span class="step-label">Phase 3</span>
+        <h2>Zone Rings</h2>
+        <p>
+          Next we calculate which parcels fall in each distance tier. The innermost zone takes priority.
+        </p>
+        <div class="img-placeholder" style="min-height: 120px;">
+          <div>
+            <div style="font-size: 1.2em; margin-bottom: 0.3em;">Screenshot: Zone Rings</div>
+            <div>Place image at <code>images/step-3-zones.png</code></div>
+          </div>
+        </div>
+        <div class="stat-badge-row">
+          <div class="stat-badge">
+            <div class="number" style="color: var(--accent);">22</div>
+            <div class="label">200ft</div>
+          </div>
+          <div class="stat-badge">
+            <div class="number" style="color: var(--blue);">1,601</div>
+            <div class="label">Quarter Mile</div>
+          </div>
+          <div class="stat-badge">
+            <div class="number" style="color: var(--green);">4,821</div>
+            <div class="label">Half Mile</div>
+          </div>
+        </div>
+        <aside class="notes">
+          For each stop, we query parcels at 200ft, quarter mile, and half mile.
+          If a parcel appears in multiple zones, the innermost wins. This gives
+          us the parcel set we need for capacity calculation.
+        </aside>
+      </section>
+
+      <!-- ========== SLIDE 8: Step 4a — Capacity Setup ========== -->
+      <section>
+        <span class="step-label">Crucial Nuance</span>
+        <h2>Calculating Capacity</h2>
+        <div class="callout">
+          <p style="font-size: 0.7em; color: var(--text); font-family: var(--serif); font-style: italic;">
+            After this it should be pretty simple, right? We just add up the upzoned capacity?
+          </p>
+        </div>
+        <p>
+          Not quite. SB-79 includes a clause that incentivizes development on
+          <strong>undeveloped land</strong>. The capacity increase depends on what already exists on each parcel.
+        </p>
+        <table class="tier-table">
+          <thead>
+            <tr>
+              <th>Zone</th>
+              <th>Distance</th>
+              <th>Min. Density</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="zone-dot red"></span>200 ft</td>
+              <td>0 – 200 feet from stop</td>
+              <td>160 dwelling units / acre</td>
+            </tr>
+            <tr>
+              <td><span class="zone-dot blue"></span>Quarter Mile</td>
+              <td>200 ft – 0.25 miles</td>
+              <td>120 dwelling units / acre</td>
+            </tr>
+            <tr>
+              <td><span class="zone-dot green"></span>Half Mile</td>
+              <td>0.25 – 0.5 miles</td>
+              <td>100 dwelling units / acre</td>
+            </tr>
+          </tbody>
+        </table>
+        <aside class="notes">
+          The density numbers look straightforward, but there's a catch. SB-79
+          says the net increase is the SB-79 capacity minus existing units. So a
+          parking lot gets the full upzone, but a building that already has 100
+          units gets much less. Let me show you what that looks like.
+        </aside>
+      </section>
+
+      <!-- ========== SLIDE 9: Step 4b — Capacity Diagram ========== -->
+      <section>
+        <span class="step-label">Net Capacity</span>
+        <h2>Two Parcels Compared</h2>
+        <p style="font-size: 0.55em;">
+          Two identical <strong>1-acre</strong> lots in the
+          <span class="zone-dot red" style="margin-left: 0.2em;"></span><strong>200 ft</strong> zone:
+        </p>
+        <div class="capacity-compare">
+          <!-- Parcel A: Parking lot -->
+          <div class="parcel-card">
+            <div class="parcel-card-header accent">Parcel A — Parking Lot</div>
+            <div class="parcel-card-visual lot">
+              <div style="font-size: 2.5em; opacity: 0.3; font-weight: 700;">P</div>
+            </div>
+            <div class="parcel-card-body">
+              <div class="calc-line"><span>Lot size</span><span>1 acre</span></div>
+              <div class="calc-line"><span>SB-79 density</span><span>160 du/acre</span></div>
+              <div class="calc-line"><span>Potential capacity</span><span>160 units</span></div>
+              <div class="calc-line"><span>Existing units</span><span>0</span></div>
+              <div class="calc-result green"><span>Net new capacity</span><span>+160 units</span></div>
+            </div>
+          </div>
+          <!-- Parcel B: Apartment building -->
+          <div class="parcel-card">
+            <div class="parcel-card-header">Parcel B — Apartment Building</div>
+            <div class="parcel-card-visual building">
+              <div class="building-grid">
+                <div class="building-row"><div class="window"></div><div class="window"></div><div class="window"></div><div class="window"></div></div>
+                <div class="building-row"><div class="window"></div><div class="window"></div><div class="window"></div><div class="window"></div></div>
+                <div class="building-row"><div class="window"></div><div class="window"></div><div class="window"></div><div class="window"></div></div>
+                <div class="building-row"><div class="window"></div><div class="window"></div><div class="window"></div><div class="window"></div></div>
+                <div class="building-row"><div class="window"></div><div class="window"></div><div class="window"></div><div class="window"></div></div>
+              </div>
+            </div>
+            <div class="parcel-card-body">
+              <div class="calc-line"><span>Lot size</span><span>1 acre</span></div>
+              <div class="calc-line"><span>SB-79 density</span><span>160 du/acre</span></div>
+              <div class="calc-line"><span>Potential capacity</span><span>160 units</span></div>
+              <div class="calc-line"><span>Existing units</span><span>100</span></div>
+              <div class="calc-result blue"><span>Net new capacity</span><span>+60 units</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="formula-box">
+          net_capacity = max(0, lot_acres &times; density &minus; existing_units)
+        </div>
+        <aside class="notes">
+          Here we see two identical 1-acre parcels in the 200ft zone. Parcel A is
+          a parking lot — zero existing units, so the full 160-unit capacity flows
+          through. Parcel B already has 100 units of housing, so SB-79 only adds
+          60 net new units. This is by design: the law targets underutilized land
+          near transit.
+        </aside>
+      </section>
+
+      <!-- ========== SLIDE 10: Results ========== -->
+      <section>
+        <span class="step-label">The Findings</span>
+        <h2>Results: Berkeley</h2>
+        <p style="font-size: 0.55em;">Using all this information, we get a baseline for what SB-79 adds:</p>
+        <div class="stat-row">
+          <div class="stat-card bg-blue">
+            <div class="number">6,444</div>
+            <div class="label">Parcels Affected</div>
+          </div>
+          <div class="stat-card bg-accent">
+            <div class="number">+83,927</div>
+            <div class="label">Net New Capacity</div>
+          </div>
+          <div class="stat-card bg-green">
+            <div class="number">20,924</div>
+            <div class="label">Existing Units</div>
+          </div>
+        </div>
+        <table class="tier-table" style="margin-top: 0.6em;">
+          <thead>
+            <tr>
+              <th>Zone</th>
+              <th>Parcels</th>
+              <th>Existing Units</th>
+              <th>Net New Capacity</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="zone-dot red"></span>200 ft</td>
+              <td>22</td>
+              <td>121</td>
+              <td>+3,156</td>
+            </tr>
+            <tr>
+              <td><span class="zone-dot blue"></span>Quarter Mile</td>
+              <td>1,601</td>
+              <td>6,012</td>
+              <td>+24,548</td>
+            </tr>
+            <tr>
+              <td><span class="zone-dot green"></span>Half Mile</td>
+              <td>4,821</td>
+              <td>14,791</td>
+              <td>+56,223</td>
+            </tr>
+          </tbody>
+        </table>
+        <aside class="notes">
+          Under SB-79, Berkeley could permit roughly 4x its existing housing units
+          near the 8 BART stations. The half-mile zone drives most of the capacity
+          simply because it covers the most parcels.
+        </aside>
+      </section>
+
+      <!-- ========== SLIDE 11: Next Steps ========== -->
+      <section>
+        <div class="grid-2" style="align-items: start;">
+          <div>
+            <span class="step-label">Roadmap</span>
+            <h2>Next Steps</h2>
+            <div style="margin-bottom: 0.8em;">
+              <h3 style="font-size: 0.65em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; margin-bottom: 0.2em;">Adding Existing Zoning Capacity</h3>
+              <p style="font-size: 0.55em;">
+                We calculate SB-79 minimums, but what does <strong>current zoning</strong> already allow? This is complicated:
+              </p>
+              <ul style="font-size: 0.88em;">
+                <li>Middle housing zones (R-1, R-2, R-2A, MUR) have a <strong>max density</strong> of 70 du/acre</li>
+                <li>Higher R &amp; C zones are <strong>form-based</strong> — capacity = height (stories) &times; lot coverage</li>
+              </ul>
+            </div>
+            <div>
+              <h3 style="font-size: 0.65em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; margin-bottom: 0.2em;">Scaling to New Cities</h3>
+              <p style="font-size: 0.55em;">
+                Each city has its own parcel API, zoning API, and municipal code.
+              </p>
+            </div>
+          </div>
+          <div class="help-box">
+            <h3>We Need Your Help</h3>
+            <ul>
+              <li>Can help connect their city's GIS data to the pipeline</li>
+              <li>Know the rules for calculating existing zoning capacity in their city</li>
+              <li>Python/GIS developers familiar with GeoPandas</li>
+            </ul>
+          </div>
+        </div>
+        <aside class="notes">
+          Two big areas where we need help. First, calculating what's currently
+          allowed — 70 du/acre for middle housing zones with a functional FAR
+          of 1.8 (35ft = 3 stories, 60% lot coverage). The higher zones are
+          form-based. Second, scaling up — every city has different APIs and
+          zoning rules.
+        </aside>
+      </section>
+
+      <!-- ========== SLIDE 12: Thank You ========== -->
+      <section class="title-slide">
+        <span class="step-label">End of Presentation</span>
+        <h1>Thank You</h1>
+        <div class="link-cards">
+          <a href="https://vikram-t.github.io/sb79-analysis/public/" class="link-card">
+            <div class="link-label" style="color: var(--blue);">Live Demo</div>
+            <div class="link-title">Interactive Map &rarr;</div>
+          </a>
+          <a href="https://github.com/Vikram-T/sb79-analysis" class="link-card">
+            <div class="link-label" style="color: var(--text-muted);">Open Source</div>
+            <div class="link-title">GitHub Repository &rarr;</div>
+          </a>
+        </div>
+        <div style="font-size: 0.4em; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; font-style: italic; margin-top: 0.5em;">
+          This Presentation: <a href="https://vikram-t.github.io/sb79-analysis/presentation/" style="color: var(--text-muted);">vikram-t.github.io/sb79-analysis/presentation</a>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+  <script>
+    Reveal.initialize({
+      hash: true,
+      slideNumber: true,
+      width: 800,
+      height: 600,
+      margin: 0.02,
+      transition: 'fade',
+      transitionSpeed: 'fast',
+      center: false,
+      plugins: [ RevealNotes ],
+    });
+  </script>
+</body>
+</html>
